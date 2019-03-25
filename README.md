@@ -32,11 +32,11 @@ To run a specific test, use the `-TestsFilter` parameter with name of the test t
 
 # FAQ
 
-## The script fails due to execution policy
+## The script fails because it is not digitally signed.
 
-Change execution policy for current user to either `Unrestricted` or `RemoteSigned`.
+Change the execution policy for current user to either `Unrestricted` or `RemoteSigned`.
 
-Check the current execution policy with:
+Check the current execution policy settings with:
 ```
 Get-ExecutionPolicy 
 ```
