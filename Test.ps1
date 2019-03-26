@@ -97,23 +97,16 @@ Function Test-Run
     Write-Host 
     Write-Host $Test -ForegroundColor Yellow
 
-    $testWorkingDirectory = Join-Path $TestsDirectory -ChildPath $Test
+    $testDirectory = Join-Path $TestsDirectory -ChildPath $Test
 
-    if (-not (Test-Path $testWorkingDirectory))
+    if (-not (Test-Path $testDirectory))
     {
         Write-Host "Test directory not found, test ignored"
         Return
     }
 
-    $runOutputDir = Join-Path $OutputDirectory -ChildPath $Run
-
-    if (-not (Test-Path $runOutputDir))
-    {
-        New-Item $runOutputDir -ItemType Directory -ErrorAction Ignore | Out-Null
-    }
-
-    $inputFilePath    = Join-Path $testWorkingDirectory -ChildPath "input.txt"
-    $expectedFilePath = Join-Path $testWorkingDirectory -ChildPath "expected.txt"
+    $inputFilePath    = Join-Path $testDirectory -ChildPath "input.txt"
+    $expectedFilePath = Join-Path $testDirectory -ChildPath "expected.txt"
 
     if ((-not (Test-Path $inputFilePath)) -or (-not (Test-Path $expectedFilePath))) 
     {
@@ -121,18 +114,24 @@ Function Test-Run
         Return
     }
 
-    $outputDir = Join-Path $runOutputDir -ChildPath $Test
+    $runDirectory = Join-Path (Join-Path $OutputDirectory -ChildPath $Run) -ChildPath $Test
+    
+    # Delete previous run
+    if (Test-Path $runDirectory)
+    {
+        Remove-Item $runDirectory -Recurse
+    }
+    New-Item $runDirectory -ItemType Directory -ErrorAction Ignore | Out-Null
 
-    $outputFilePath = Join-Path $outputDir -ChildPath "output.txt"
-    $errorFilePath  = Join-Path $outputDir -ChildPath "error.txt"
+    Copy-item "$testDirectory\*" -Exclude "expected.txt" -Destination $runDirectory
 
-    Remove-Item $outputDir -Recurse -ErrorAction SilentlyContinue | Out-Null
-    New-Item $outputDir -ItemType Directory | Out-Null
+    $outputFilePath = Join-Path $runDirectory -ChildPath "output.txt"
+    $errorFilePath  = Join-Path $runDirectory -ChildPath "error.txt"
 
     Write-Host "Execution: " -NoNewline
 
     $process = Start-Process -FilePath $ExecutablePath `
-                             -WorkingDirectory $testWorkingDirectory `
+                             -WorkingDirectory $runDirectory `
                              -RedirectStandardInput $inputFilePath `
                              -RedirectStandardOutput $outputFilePath `
                              -RedirectStandardError $errorFilePath `
@@ -149,7 +148,8 @@ Function Test-Run
         }
         else {
             Write-Host "FAILED" -ForegroundColor Red
-            Write-Host "Exit code: $($process.ExitCode)" -ForegroundColor Red 
+            Write-Host "Exit code: $($process.ExitCode)" -ForegroundColor Red
+            Get-Content $errorFilePath | Write-Host
         }
     }
     else
@@ -194,6 +194,7 @@ if (Test-Path $ExecutablePath)
     Write-Host "Running tests:"
 
     Get-ChildItem $TestsDirectory -Filter $TestsFilter -Directory `
+    | Sort-Object -Property Name `
     | % { 
             Test-Run -Run $run `
                      -Test $_.Name `

@@ -3,11 +3,14 @@
 Simple testing of C programs with test scenarios.
 
 Testing process overview with `Test.ps1` script:
-1. Call GCC compiler with the given source code file and prints out compiler output in case of errors or warnings. 
+
+1. Compile given source code file with GCC compiler and print out compiler output in case of errors or warnings. 
 2. If the compilation is successful, print out `OK` message. The executable is located in the `build` directory.
 3. For each test scenario located in the `tests` directory:
-    1. Execute the program in the test scenario directory with input read from a `input.txt` file and its output redirected to `output.txt` file in the `runs\<test_name>\` directory.
-    2. Compare program output and expected output.
+    1. Create working directory in the `runs` directory with the template `runs\<test_run>\<test_name>\` where `<test_run>` is name of the source code file. 
+    1. Copy test files to the working directory, except `expected.txt`. 
+    1. Execute the program in the test working directory with input read from a `input.txt` file and its output redirected to `output.txt` file.
+    2. Compare program output in `output.txt` with the expected output in `expected.txt` in the test directory.
     3. If outputs match, print out `PASSED` message.
     4. If outputs do not match, print out `CHECK` message (manual check required) and actual output and expected output together with comparison table.
     5. If program had no output but it was expected, print out `FAILED` message.
