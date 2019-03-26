@@ -25,7 +25,7 @@ Testing process overview with `Test.ps1` script:
 
 # How to use it
 
-Clone the repository, or download it as a [ZIP file](https://github.com/martinkonopka/simple-tester/archive/master.zip).
+Clone the repository, or download it as a [ZIP file](https://github.com/martinkonopka/simple-c-program-tester/archive/master.zip).
 
 Put your test scenarios into the `tests` directory, each in separate directory with name of the scenario. Each scenario must include these files:
 * `input.txt` which will be redirected to standard input, and
