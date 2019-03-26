@@ -87,3 +87,7 @@ More info:
 * [About Execution Policies](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
 * [Set-ExecutionPolicy](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy?view=powershell-5.1)
 
+## Can it run on Linux or Mac?
+
+It can, probably. Although PowerShell is native to Microsoft Windows, it is available for Linux and MacOS too, see [PowerShell repository](https://github.com/PowerShell/PowerShell) for instructions. I haven't tested it though. You can also create similar script in Bash, or run the tests manually :-)
+
