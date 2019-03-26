@@ -3,6 +3,8 @@ param(
 ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
+,   [string]$GccPath = "gcc"
+,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 5000
 )
 
@@ -181,7 +183,9 @@ if (Test-Path $ExecutablePath)
 
 Write-Host "Compiling $($SourcePath): " -NoNewline
 
-& gcc $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
+# Compile source file with GCC and supply includes in case they are missing in the soruce file.
+# Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
+& $GccPath $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
 
 if (Test-Path $ExecutablePath) 
 {
@@ -189,7 +193,7 @@ if (Test-Path $ExecutablePath)
     Write-Host "Path: $ExecutablePath"
     Write-Host "Running tests:"
 
-    Get-ChildItem $TestsDirectory -Filter "*" -Directory `
+    Get-ChildItem $TestsDirectory -Filter $TestsFilter -Directory `
     | % { 
             Test-Run -Run $run `
                      -Test $_.Name `
