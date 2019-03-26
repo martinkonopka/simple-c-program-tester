@@ -1,4 +1,4 @@
-# Simple Tester
+# Simple C Program Tester
 
 Simple testing of C programs with test scenarios.
 
