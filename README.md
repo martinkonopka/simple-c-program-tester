@@ -1,6 +1,6 @@
 # Simple C Program Tester
 
-Simple testing of C programs with test scenarios.
+Simple testing utility for C programs written in PowerShell.
 
 Testing process overview with `Test.ps1` script:
 
