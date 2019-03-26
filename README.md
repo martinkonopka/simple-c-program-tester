@@ -2,7 +2,7 @@
 
 Simple testing utility for C programs written in PowerShell.
 
-Testing process overview with `Test.ps1` script:
+Overview of the testing procedure with the `Test.ps1` script:
 
 1. Compile given source code file with GCC compiler and print out compiler output in case of errors or warnings. 
 2. If the compilation is successful, print out `OK` message. The executable is located in the `build` directory.
