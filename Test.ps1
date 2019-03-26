@@ -48,22 +48,22 @@ Function Compare-Output
         
     if ($compare) {
         if ($output) {
-            Write-Host "CHECK" -ForegroundColor Gray
-            Write-Host "##### actual #####"
+            Write-Host "CHECK" -ForegroundColor Yellow
+            Write-Host "##### actual #####" -ForegroundColor Yellow
             $output | Write-Host
-            Write-Host "---- expected ----"
+            Write-Host "---- expected ----" -ForegroundColor Yellow
             $expected | Write-Host
-            Write-Host "---- compared ----"
+            Write-Host "---- compared ----" -ForegroundColor Yellow
             $compare | Format-Table
-            Write-Host "##################"
+            Write-Host "##################" -ForegroundColor Yellow
         }
         else {
-            Write-Host "FAILED" -ForegroundColor Red
-            Write-Host "##### actual #####"
+            Write-Host "FAILED" -ForegroundColor Yellow
+            Write-Host "##### actual #####" -ForegroundColor Yellow
             $output | Write-Host
-            Write-Host "---- expected ----"
+            Write-Host "---- expected ----" -ForegroundColor Yellow
             $expected | Write-Host
-            Write-Host "##################"
+            Write-Host "##################" -ForegroundColor Yellow
         }
     }
     else {
@@ -154,6 +154,7 @@ Function Test-Run
     }
     else
     {
+        $process.Kill()
         Write-Host "TIMEOUT" -ForegroundColor Red
     }
 
@@ -177,7 +178,7 @@ $ExecutablePath = Join-Path $BuildDirectory -ChildPath "$($run).exe"
 
 if (Test-Path $ExecutablePath) 
 {
-    Remove-Item $ExecutablePath 
+    Remove-Item $ExecutablePath -ErrorAction Stop
 } 
 
 
