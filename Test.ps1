@@ -5,7 +5,7 @@ param(
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
 ,   [string]$GccPath = "gcc"
 ,   [string]$TestsFilter = "*"
-,   [int]$Timeout = 5000
+,   [int]$Timeout = 1000
 )
 
 Function Compare-Output 
@@ -17,8 +17,8 @@ Function Compare-Output
         .DESCRIPTION
         Possible results:
         PASSED - contents are equal, test passed.
-        CHECK - contents are not equal but output file is non-empty, contents and diff of both files are listed and should be checked manually.
-        FAILED - the test output file is empty, but output was expected.
+        CHECK - contents are not equal but output file is not empty, contents and diff of both files are listed and should be checked manually.
+        FAILED - the actual output file is empty, but output was expected.
     #>
 
     param(
@@ -49,7 +49,7 @@ Function Compare-Output
     if ($compare) {
         if ($output) {
             Write-Host "CHECK" -ForegroundColor Gray
-            Write-Host "##### output #####"
+            Write-Host "##### actual #####"
             $output | Write-Host
             Write-Host "---- expected ----"
             $expected | Write-Host
@@ -59,7 +59,7 @@ Function Compare-Output
         }
         else {
             Write-Host "FAILED" -ForegroundColor Red
-            Write-Host "##### output #####"
+            Write-Host "##### actual #####"
             $output | Write-Host
             Write-Host "---- expected ----"
             $expected | Write-Host
