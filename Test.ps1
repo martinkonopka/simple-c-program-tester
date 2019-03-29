@@ -3,10 +3,33 @@ param(
 ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
-,   [string]$GccPath = "gcc"
 ,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 1000
 )
+
+
+Function Test-Gcc 
+{
+    return (Get-Command "gcc.exe" -ErrorAction SilentlyContinue) -ne $NULL
+}
+
+Function Open-EnvironmentVariables 
+{
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+    
+    if ($PSCmdlet.ShouldProcess("GCC bin directory", "Open environment variables configuration window?"))
+    {
+        Start-Process -FilePath rundll32 `
+                      -ArgumentList sysdm.cpl,EditEnvironmentVariables `
+                      -NoNewWindow `
+                      -Wait
+
+        Write-Host
+        Write-Host "To apply changes, close and open new PowerShell console window." -ForegroundColor Yellow
+        
+    }
+}
 
 Function Compare-Output 
 {
@@ -184,11 +207,27 @@ if (Test-Path $ExecutablePath)
 
 Write-Host "Compiling $($SourcePath): " -NoNewline
 
-# Compile source file with GCC and supply includes in case they are missing in the soruce file.
-# Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
-& $GccPath $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
+# Check if the GCC is available. If not, ask to open Environment Varaibles settings window to set it in the PATH
+if (-not (Test-Gcc))
+{
+    Write-Host "Compiler not found" -ForegroundColor Red
+    Write-Host "Unable to find gcc.exe in your PATH. Set up path to the GCC bin directory to your PATH environmnet variable." -Foreground Red
+    Write-Host "Set GCC bin directory to the PATH variable and restart PowerShell." -ForegroundColor Red
+    Open-EnvironmentVariables -Confirm
+}
 
-if (Test-Path $ExecutablePath) 
+if (Test-Gcc)
+{
+    # Compile source file with GCC and supply includes in case they are missing in the soruce file.
+    # Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
+    & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
+}
+else 
+{
+    Write-Host "Unable to find gcc.exe in your PATH."
+}
+
+if (Test-Path $ExecutablePath)
 {
     Write-Host "OK" -ForegroundColor Green
     Write-Host "Path: $ExecutablePath"

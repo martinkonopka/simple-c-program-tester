@@ -1,4 +1,4 @@
-# Simple C Program Tester
+﻿# Simple C Program Tester
 
 Simple testing utility for C programs written in PowerShell. Set up tests and run the `Test.ps1` script.
 
@@ -19,9 +19,9 @@ Overview of the testing procedure with the `Test.ps1` script:
 
 # Requirements
 
-* Windows PowerShell 5.1 - recommended, lower versions may work (not tested)
+* Windows PowerShell 5.1 - recommended, lower versions have not been tested
 * GNU GCC compiler
-* (optional) Environment variable PATH set to GCC `bin` directory; otherwise, use the `-GccPath` parameter with path to the `gcc.exe`
+* Environment variable `PATH` set to the GCC `bin` directory
 
 # How to use it
 
@@ -49,7 +49,7 @@ tests\
     └── expected.txt
 ```
 
-Open Windows PowerShell console and run the script with `-SourcePath` parameter set to the source code file to test. The script will run all test scenarios in the `tests` directory.
+Open Windows PowerShell console and run the script with `-SourcePath` parameter set to the source code file to test. The script will build the source file with GCC compiler and run all test scenarios in the `tests` directory.
 You can put source code file into the `src` directory. 
 
 ```
@@ -80,12 +80,26 @@ Run the PowerShell as an Administrator and change the execution policy for `Curr
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-Run the `Test.ps1` again, it should work.
+Run `Test.ps1` again, it should work.
 If you are done with testing, revert the execution policy to the original setting with `Set-ExecutionPolicy`.
 
 More info:
 * [About Execution Policies](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
 * [Set-ExecutionPolicy](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy?view=powershell-5.1)
+
+## Compilation fails because GCC is not set in the PATH.
+
+You have set path to the GCC `bin` directory as an entry to the `PATH` evnironment variable. Doing this allows you to call `gcc.exe` (and other executables from the GCC directory) in any directory without using the absolute path.
+1. Download MinGW distribution of the GCC compiler. By default, it is installed in `C:\MinGW\` directory.
+2. Open `Advanced System Settings` using the Windows search.   
+3. Go to the `Advanced` tab.
+4. Press the `Evironment Variables...` button.
+5. Select the `PATH` variable in the list of the user variables and press `Edit...` or create a new one.
+6. Add new entry with path to the GCC bin directory to the list of entries for PATH, for example, `C:\MinGW\bin\`.
+7. Save all changes, close all windows open in these steps.
+8. Test the new setting by opening a new command line window and running `gcc.exe`. You should see the output of the GCC compiler. 
+9. Reopen PowerShell console to update environment variables. 
+
 
 ## Can it run on Linux or Mac?
 
