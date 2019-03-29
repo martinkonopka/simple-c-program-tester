@@ -16,7 +16,7 @@ tests_dir="tests"
 run_dir="runs"
 
 source_path=""
-output_path="$output_dir/a.out"
+exec="$output_dir/a.out"
 test_filter=""
 
 # Print usage
@@ -33,7 +33,7 @@ helpmenu() {
 compile() {
 	if [ ! -d "$output_dir" ]; then mkdir $output_dir; fi
 	echo -e "$finfo Compiling..."
-	gcc $source_path -o $output_path -lm
+	gcc $source_path -o $exec -lm
 }
 
 # $1 => test directory path
@@ -41,31 +41,52 @@ test() {
 	outf="output.txt"
 	errf="error.txt"
 	test=$1
-	exec=$output_path
 
-	echo -e "$finfo Executing test case '${test##*/}'"
+	#echo -e "$finfo Executing test case '${test##*/}'"
 	
-	if [ -d $run_dir ]; then rm -r "$run_dir"/*; fi
-	sleep 0.1
+	if [ -d $run_dir ]; then find $run_dir -type f -delete; fi
 	cp -r "$test"/* $run_dir
-	#echo $exec
-	(cd $run_dir && exec "../$exec" < ".$test/input.txt" > "$outf" 2>"$errf")
+	
+	(cd $run_dir && exec timeout 1s "../$exec" < ".$test/input.txt" > "$outf" 2>"$errf")
 
+	# Check if porgram failed
 	exit_code=$?
-	if [ ! $exit_code == 0 ]; then
+	if [ $exit_code -eq 124 ]; then
+		echo -e "$ferr Allowed program runtime exceeded"
+		return
+	elif [ ! $exit_code == 0 ]; then
 		echo -e "$ferr Failed with exit code $exit_code"
 		return
 	fi
+
+	# Check program output with expected
+	diff "$run_dir/output.txt" "$run_dir/expected.txt" >> /dev/null
+	result=$?
+	if [ $result -eq 0 ]; then
+		echo -e "$fok PASSED"
+	else
+		echo -e "$ferr FAILED"
+		echo "##### actual #####"
+		cat "$run_dir/output.txt"
+		echo "---- expected ----"
+		cat "$run_dir/expected.txt"
+		echo "##################"
+	fi
+
 }
 
 # Run all test in test directory
 # Find all subdirectories in test/ pick the ones, that
 # match the filter and sort them
 runtests() {
-	echo -e "\n$finfo Running tests"
+	echo -e "$finfo Running tests\n"
 	if [ ! -d $run_dir ]; then mkdir $run_dir; fi
 	for tdir in `find ./$tests_dir -mindepth 1 -type d | grep "$test_filter" | sort`
 	do
+		if [ ! -f "$tdir/input.txt" ] || [ ! -f "$tdir/expected.txt" ]; then
+			echo -e "$ferr Test files missing in '${tdir##*/}'"
+			continue
+		fi
 		test $tdir
 	done
 	echo
@@ -74,8 +95,8 @@ runtests() {
 # Cleanup compiled files and copied files
 cleanup() {
 	echo -e "$finfo Cleaning up"
-	rm $output_path
-	rm -r "$run_dir"/*
+	rm "$exec"
+	find $run_dir -type f -delete
 }
 
 
@@ -114,7 +135,7 @@ done
 # Compile and check success
 compile
 sleep 0.5
-if [ ! -f "$output_path" ]; then
+if [ ! -f "$exec" ]; then
 	echo -e "$ferr Compilation error"
 	exit
 else
