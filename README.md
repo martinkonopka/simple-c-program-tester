@@ -95,8 +95,8 @@ You have set path to the GCC `bin` directory as an entry to the `PATH` evnironme
 3. Go to the `Advanced` tab.
 4. Press the `Evironment Variables...` button.
 5. Select the `PATH` variable in the list of the user variables and press `Edit...` or create a new one.
-6. Add new entry with path to the GCC bin directory to the list of entries for PATH, for example, `C:\MinGW\bin\`.
-7. Save all changes, close all windows open in these steps.
+6. Add new entry with path to the GCC bin directory to the list of entries for PATH, for example `C:\MinGW\bin\`.
+7. Save all changes, close all the windows open in these steps.
 8. Test the new setting by opening a new command line window and running `gcc.exe`. You should see the output of the GCC compiler. 
 9. Reopen PowerShell console to update environment variables. 
 
