@@ -38,16 +38,16 @@ compile() {
 
 # $1 => test directory path
 test() {
-	outf="output.txt"
-	errf="error.txt"
-	test=$1
+	test=${1##*/}
+	test_run_dir="$run_dir/$test"
 
-	#echo -e "$finfo Executing test case '${test##*/}'"
+	echo -e "$finfo Executing test case '$test'"
 	
 	if [ -d $run_dir ]; then find $run_dir -type f -delete; fi
-	cp -r "$test"/* $run_dir
+	#cp -r "$tests_dir/$test" $run_dir
+	rsync -r $test_run_dir $run_dir --exclude "expected.txt"
 	
-	(cd $run_dir && exec timeout 1s "../$exec" < ".$test/input.txt" > "$outf" 2>"$errf")
+	(cd $test_run_dir && exec timeout 1s "../../$exec" < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if porgram failed
 	exit_code=$?
@@ -60,16 +60,16 @@ test() {
 	fi
 
 	# Check program output with expected
-	diff "$run_dir/output.txt" "$run_dir/expected.txt" >> /dev/null
+	diff "$test_run_dir/output.txt" "$test_run_dir/expected.txt" >> /dev/null
 	result=$?
 	if [ $result -eq 0 ]; then
 		echo -e "$fok PASSED"
 	else
 		echo -e "$ferr FAILED"
 		echo "##### actual #####"
-		cat "$run_dir/output.txt"
+		cat "$test_run_dir/output.txt"
 		echo "---- expected ----"
-		cat "$run_dir/expected.txt"
+		cat "$test_run_dir/expected.txt"
 		echo "##################"
 	fi
 
@@ -96,7 +96,7 @@ runtests() {
 cleanup() {
 	echo -e "$finfo Cleaning up"
 	rm "$exec"
-	find $run_dir -type f -delete
+	#find $run_dir -type f -delete
 }
 
 
