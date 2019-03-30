@@ -1,11 +1,11 @@
-# Simple C Program Tester
+﻿# Simple C Program Tester
 
 Simple testing utility for C programs. 
 
 # Table of contents
 
 1) [Testing procedure overview](#testing-procedure-overview)
-2) [General usage](#usage)
+2) [General usage](#general-usage)
 3) [Windows](#windows)
 4) [Linux](#linux)
 6) [Something is not working](#something-is-not-working)
@@ -25,7 +25,8 @@ Simple testing utility for C programs.
     5. If program had no output but it was expected, print out `FAILED` message.
 4. Each test scenario must be completed within the 1000 millisecond timeout (default, can be changed).
 
-# Usage
+
+# General usage
 
 Clone the repository, or download it as a [ZIP file](https://github.com/martinkonopka/simple-c-program-tester/archive/master.zip).
 
@@ -55,13 +56,13 @@ tests\
 
 ## Requirements
 
-* Windows PowerShell 5.1 - recommended, lower versions may work (not tested)
+* Windows PowerShell 5.1 - recommended, lower versions have not been tested
 * GCC (compiler)
-* (optional) Environment variable PATH set to GCC `bin` directory; otherwise, use the `-GccPath` parameter with path to the `gcc.exe`
+* Environment variable `PATH` set to the GCC `bin` directory
 
 ## How to run tests
 
-Open Windows PowerShell console and run the script with `-SourcePath` parameter set to the source code file to test. The script will run all test scenarios in the `tests` directory.
+Open Windows PowerShell console and run the script with `-SourcePath` parameter set to the source code file to test. The script will build the source file with GCC compiler and run all test scenarios in the `tests` directory.
 You can put source code file into the `src` directory. 
 
 ```
@@ -82,7 +83,7 @@ To run a specific test, use the `-TestsFilter` parameter with name of the test t
 ## How to run tests
 
 ``` bash
-# To run all test
+# To run all tests
 ./Test.sh ./src/source.c
 
 # Display help
@@ -103,7 +104,7 @@ Instructions:
 
 # FAQ
 
-## The script fails because it is not digitally signed.
+## [Windows] The script fails because it is not digitally signed.
 
 Change the execution policy for current user to either `RemoteSigned` or `Unrestricted`.
 
@@ -118,15 +119,29 @@ Run the PowerShell as an Administrator and change the execution policy for `Curr
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-Run the `Test.ps1` again, it should work.
+Run `Test.ps1` again, it should work.
 If you are done with testing, revert the execution policy to the original setting with `Set-ExecutionPolicy`.
 
 More info:
 * [About Execution Policies](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
 * [Set-ExecutionPolicy](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy?view=powershell-5.1)
 
+## [Windows] Compilation fails because GCC is not set in the PATH.
+
+You have set path to the GCC `bin` directory as an entry to the `PATH` evnironment variable. Doing this allows you to call `gcc.exe` (and other executables from the GCC directory) in any directory without using the absolute path.
+1. Download MinGW distribution of the GCC compiler. By default, it is installed in `C:\MinGW\` directory.
+2. Open `Advanced System Settings` using the Windows search.   
+3. Go to the `Advanced` tab.
+4. Press the `Evironment Variables...` button.
+5. Select the `PATH` variable in the list of the user variables and press `Edit...` or create a new one.
+6. Add new entry with path to the GCC bin directory to the list of entries for PATH, for example `C:\MinGW\bin\`.
+7. Save all changes, close all the windows open in these steps.
+8. Test the new setting by opening a new command line window and running `gcc.exe`. You should see the output of the GCC compiler. 
+9. Reopen PowerShell console to update environment variables. 
+
+
 ## Can it run on Mac?
 
-It can! Mac is POSIX OS, so try following [Linux](#linux) instructions. If that is not working, please report it. Instructions [here](#something-is-not-working).
+It can! Mac is POSIX-compliant (Unix-like), so try following [Linux](#linux) instructions. If that is not working, please report it. Instructions [here](#something-is-not-working).
 Last resort solution is trying PowerShell (it is not tested though). Although it is native to Microsoft Windows, it is available for MacOS too, see [PowerShell repository](https://github.com/PowerShell/PowerShell) for instructions. You can also run the tests manually :-)
 
