@@ -37,8 +37,8 @@ helpmenu() {
     echo
     printf "$help_format" "" "--help" "Display this menu"
     printf "$help_format" "-f" "--tests-filter NAME" "Run specific test with name NAME"
-	printf "$help_format" "-m" "--mistake" "Display whole expected and actual output instead of only differences"
-	printf "$help_format" "-d" "--differences" "Delete generated outputs after finishing"
+	printf "$help_format" "-d" "--differences" "Display whole expected and actual output instead of only differences"
+	printf "$help_format" "-c" "--cleanup" "Delete generated outputs after finishing"
 }
 
 # Compile src with gcc
@@ -152,6 +152,7 @@ do
 			exit
 			;;
         --tests-filter | -f)
+			shift
 			test_filter="$1"
             ;;
 		--differences | -d)
