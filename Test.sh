@@ -1,7 +1,14 @@
 #!/bin/bash
 
+# ====================
 # 2019 Matúš Chovan
+# ====================
 
+# Variables from outside
+source_path=""
+test_filter=""
+
+# Inside variables
 header="Simple C Program Tester for LINUX"
 usage="Usage: TestLinux.sh <source_program.c> [OPTIONS...]"
 
@@ -15,9 +22,7 @@ output_dir="build"
 tests_dir="tests"
 run_dir="runs"
 
-source_path=""
 exec="$output_dir/a.out"
-test_filter=""
 
 # Print usage
 helpmenu() {
@@ -31,6 +36,10 @@ helpmenu() {
 
 # Compile src with gcc
 compile() {
+	if [ `command -v gcc` -gt 0 ]; then
+		echo "$ferr GCC in not installed or not in PATH"
+		exit
+	fi
 	if [ ! -d "$output_dir" ]; then mkdir $output_dir; fi
 	echo -e "$finfo Compiling..."
 	gcc $source_path -o $exec -lm
@@ -41,11 +50,10 @@ test() {
 	test=${1##*/}
 	test_run_dir="$run_dir/$test"
 
-	echo -e "$finfo Executing test case '$test'"
+	echo -e "$finfo Executing test case $test"
 	
 	if [ -d $run_dir ]; then find $run_dir -type f -delete; fi
-	#cp -r "$tests_dir/$test" $run_dir
-	rsync -r $test_run_dir $run_dir --exclude "expected.txt"
+	cp -r "$tests_dir/$test" $run_dir
 	
 	(cd $test_run_dir && exec timeout 1s "../../$exec" < "input.txt" > "output.txt" 2>"error.txt")
 
@@ -66,11 +74,12 @@ test() {
 		echo -e "$fok PASSED"
 	else
 		echo -e "$ferr FAILED"
-		echo "##### actual #####"
-		cat "$test_run_dir/output.txt"
-		echo "---- expected ----"
-		cat "$test_run_dir/expected.txt"
-		echo "##################"
+		diff "$test_run_dir/output.txt" "$test_run_dir/expected.txt"
+		#echo "##### actual #####"
+		#cat "$test_run_dir/output.txt"
+		#echo "---- expected ----"
+		#cat "$test_run_dir/expected.txt"
+		#echo "##################"
 	fi
 
 }
@@ -96,7 +105,7 @@ runtests() {
 cleanup() {
 	echo -e "$finfo Cleaning up"
 	rm "$exec"
-	#find $run_dir -type f -delete
+	find $run_dir -type f -delete
 }
 
 

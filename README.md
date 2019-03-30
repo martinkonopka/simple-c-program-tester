@@ -1,8 +1,17 @@
 # Simple C Program Tester
 
-Simple testing utility for C programs written in PowerShell. Set up tests and run the `Test.ps1` script.
+Simple testing utility for C programs. 
 
-Overview of the testing procedure with the `Test.ps1` script:
+# Table of contents
+
+1) [Testing procedure overview](#testing-procedure-overview)
+2) [General usage](#usage)
+3) [Windows](#windows)
+4) [Linux](#linux)
+6) [Something is not working](#something-is-not-working)
+5) [FAQ](#faq)
+
+# Testing procedure overview
 
 1. Compile given source code file with GCC compiler and print out compiler output in case of errors or warnings. 
 2. If the compilation is successful, print out `OK` message. The executable is located in the `build` directory.
@@ -16,14 +25,7 @@ Overview of the testing procedure with the `Test.ps1` script:
     5. If program had no output but it was expected, print out `FAILED` message.
 4. Each test scenario must be completed within the 1000 millisecond timeout (default, can be changed).
 
-
-# Requirements
-
-* Windows PowerShell 5.1 - recommended, lower versions may work (not tested)
-* GNU GCC compiler
-* (optional) Environment variable PATH set to GCC `bin` directory; otherwise, use the `-GccPath` parameter with path to the `gcc.exe`
-
-# How to use it
+# Usage
 
 Clone the repository, or download it as a [ZIP file](https://github.com/martinkonopka/simple-c-program-tester/archive/master.zip).
 
@@ -49,6 +51,16 @@ tests\
     └── expected.txt
 ```
 
+# Windows
+
+## Requirements
+
+* Windows PowerShell 5.1 - recommended, lower versions may work (not tested)
+* GCC (compiler)
+* (optional) Environment variable PATH set to GCC `bin` directory; otherwise, use the `-GccPath` parameter with path to the `gcc.exe`
+
+## How to run tests
+
 Open Windows PowerShell console and run the script with `-SourcePath` parameter set to the source code file to test. The script will run all test scenarios in the `tests` directory.
 You can put source code file into the `src` directory. 
 
@@ -61,7 +73,33 @@ To run a specific test, use the `-TestsFilter` parameter with name of the test t
 ```
 & .\Test.ps1 -SourcePath .\src\source.c -TestsFilter "basic_test"
 ```
+# Linux
 
+## Requirements
+
+* GCC
+
+## How to run tests
+
+``` bash
+# To run all test
+./Test.sh ./src/source.c
+
+# Display help
+./Test.sh --help
+
+# Run tests with filter
+./Test.sh ./src/source.c -f "your filter"
+```
+
+# Something is not working
+
+Please if you find an error or bug, create issue, so it can be fixed.
+Instructions:
+1) Go [here](https://github.com/martinkonopka/simple-c-program-tester/issues)
+2) Click `New issue` in top right corner
+3) Fill out title and description
+4) Do not assign any tags!
 
 # FAQ
 
@@ -87,7 +125,8 @@ More info:
 * [About Execution Policies](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
 * [Set-ExecutionPolicy](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy?view=powershell-5.1)
 
-## Can it run on Linux or Mac?
+## Can it run on Mac?
 
-It can, probably. Although PowerShell is native to Microsoft Windows, it is available for Linux and MacOS too, see [PowerShell repository](https://github.com/PowerShell/PowerShell) for instructions. I haven't tested it though. You can also create similar script in Bash, or run the tests manually :-)
+It can! Mac is POSIX OS, so try following [Linux](#linux) instructions. If that is not working, please report it. Instructions [here](#something-is-not-working).
+Last resort solution is trying PowerShell (it is not tested though). Although it is native to Microsoft Windows, it is available for MacOS too, see [PowerShell repository](https://github.com/PowerShell/PowerShell) for instructions. You can also run the tests manually :-)
 
