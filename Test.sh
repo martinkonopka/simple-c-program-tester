@@ -28,6 +28,7 @@ exec="`pwd`/$output_dir/a.out"
 
 let passed=0
 let failed=0
+let omitted=0
 
 # Print usage
 helpmenu() {
@@ -57,7 +58,6 @@ compile() {
 test() {
 	test=${1##*/}
 
-	echo "=============================="
 	echo -e "$finfo Executing test case $test"
 	
 	if [ -d "$run_dir/$test" ]; then find "$run_dir/$test" -type f -delete; fi
@@ -104,8 +104,10 @@ runtests() {
 	if [ ! -d $run_dir ]; then mkdir $run_dir; fi
 	for tdir in `find ./$tests_dir -mindepth 1 -type d | grep "$test_filter" | sort`
 	do
+		echo "=============================="
 		if [ ! -f "$tdir/input.txt" ] || [ ! -f "$tdir/expected.txt" ]; then
-			echo -e "$ferr Test files missing in '${tdir##*/}'"
+			echo -e "$ferr Skipping '${tdir##*/}', test files missing"
+			((omitted++))
 			continue
 		fi
 		test $tdir
@@ -123,9 +125,10 @@ cleanup() {
 summary() {
 	echo
 	echo "===== SUMMARY ====="
-	echo "Total $((passed + failed))"
+	echo "Total $((passed + failed + omitted))"
 	echo "Passed $passed"
 	echo "Failed $failed"
+	echo "Omitted $omitted"
 }
 
 
