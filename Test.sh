@@ -25,6 +25,7 @@ tests_dir="tests"
 run_dir="runs"
 
 exec="`pwd`/$output_dir/a.out"
+source_name=""
 
 let passed=0
 let failed=0
@@ -60,10 +61,10 @@ test() {
 
 	echo -e "$finfo Executing test case $test"
 	
-	if [ -d "$run_dir/$test" ]; then find "$run_dir/$test" -type f -delete; fi
-	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$test/"
+	if [ -d "$run_dir/$source_name/$test" ]; then find "$run_dir/$source_name/$test" -type f -delete; fi
+	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
 	
-	(cd "$run_dir/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
+	(cd "$run_dir/$source_name/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if porgram failed
 	exit_code=$?
@@ -76,7 +77,7 @@ test() {
 	fi
 
 	# Check program output with expected
-	diff -ZB "$run_dir/$test/output.txt" "$tests_dir/$test/expected.txt" >> /dev/null
+	diff -ZB "$run_dir/$source_name/$test/output.txt" "$tests_dir/$test/expected.txt" >> /dev/null
 	result=$?
 	if [ $result -eq 0 ]; then
 		echo -e "$fok PASSED"
@@ -85,12 +86,12 @@ test() {
 		echo -e "$ferr FAILED"
 		((failed++))
 		if [ $differences -eq 0 ]; then
-			diff "$run_dir/$test/output.txt" "$tests_dir/$test/expected.txt"
+			diff "$run_dir/$source_name/$test/output.txt" "$tests_dir/$test/expected.txt"
 		else
 			echo "##### actual #####"
-			cat "$run_dir/$test/output.txt"
+			cat "$run_dir/$source_name/$test/output.txt"
 			echo "---- expected ----"
-			cat "$tests_dir/$test/expected.txt"
+			cat "$run_dir/$source_name/$test/expected.txt"
 			echo "##################"
 		fi
 	fi
@@ -101,7 +102,7 @@ test() {
 # match the filter and sort them
 runtests() {
 	echo -e "$finfo Running tests\n"
-	if [ ! -d $run_dir ]; then mkdir $run_dir; fi
+	if [ ! -d "$run_dir/$source_name" ]; then mkdir "$run_dir/$source_name"; fi
 	for tdir in `find ./$tests_dir -mindepth 1 -type d | grep "$test_filter" | sort`
 	do
 		echo "=============================="
@@ -136,6 +137,7 @@ summary() {
 
 # Read and parse C program path
 source_path="`pwd`/$1"
+source_name=${source_path##*/}
 if [ "${source_path#*.}" != "c" ]; then
 	echo -e "$ferr Input file was not provided or is not a c source code => $source_path"
 	echo "$usage"
