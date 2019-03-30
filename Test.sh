@@ -7,10 +7,12 @@
 # Variables from outside
 source_path=""
 test_filter=""
+differences=0
+cleanup=0
 
 # Inside variables
 header="Simple C Program Tester for LINUX"
-usage="Usage: TestLinux.sh <source_program.c> [OPTIONS...]"
+usage="Usage: ./TestLinux.sh <source_program.c> [OPTIONS...]"
 
 help_format="%3s %-30s %s\n"
 
@@ -22,7 +24,10 @@ output_dir="build"
 tests_dir="tests"
 run_dir="runs"
 
-exec="$output_dir/a.out"
+exec="`pwd`/$output_dir/a.out"
+
+let passed=0
+let failed=0
 
 # Print usage
 helpmenu() {
@@ -32,11 +37,14 @@ helpmenu() {
     echo
     printf "$help_format" "" "--help" "Display this menu"
     printf "$help_format" "-f" "--tests-filter NAME" "Run specific test with name NAME"
+	printf "$help_format" "-m" "--mistake" "Display whole expected and actual output instead of only differences"
+	printf "$help_format" "-d" "--differences" "Delete generated outputs after finishing"
 }
 
 # Compile src with gcc
 compile() {
-	if [ `command -v gcc` -gt 0 ]; then
+	command -v gcc >> /dev/null
+	if [ $? -gt 0 ]; then
 		echo "$ferr GCC in not installed or not in PATH"
 		exit
 	fi
@@ -48,14 +56,14 @@ compile() {
 # $1 => test directory path
 test() {
 	test=${1##*/}
-	test_run_dir="$run_dir/$test"
 
+	echo "=============================="
 	echo -e "$finfo Executing test case $test"
 	
-	if [ -d $run_dir ]; then find $run_dir -type f -delete; fi
-	cp -r "$tests_dir/$test" $run_dir
+	if [ -d "$run_dir/$test" ]; then find "$run_dir/$test" -type f -delete; fi
+	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$test/"
 	
-	(cd $test_run_dir && exec timeout 1s "../../$exec" < "input.txt" > "output.txt" 2>"error.txt")
+	(cd "$run_dir/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if porgram failed
 	exit_code=$?
@@ -68,20 +76,24 @@ test() {
 	fi
 
 	# Check program output with expected
-	diff "$test_run_dir/output.txt" "$test_run_dir/expected.txt" >> /dev/null
+	diff -ZB "$run_dir/$test/output.txt" "$tests_dir/$test/expected.txt" >> /dev/null
 	result=$?
 	if [ $result -eq 0 ]; then
 		echo -e "$fok PASSED"
+		((passed++))
 	else
 		echo -e "$ferr FAILED"
-		diff "$test_run_dir/output.txt" "$test_run_dir/expected.txt"
-		#echo "##### actual #####"
-		#cat "$test_run_dir/output.txt"
-		#echo "---- expected ----"
-		#cat "$test_run_dir/expected.txt"
-		#echo "##################"
+		((failed++))
+		if [ $differences -eq 0 ]; then
+			diff "$run_dir/$test/output.txt" "$tests_dir/$test/expected.txt"
+		else
+			echo "##### actual #####"
+			cat "$run_dir/$test/output.txt"
+			echo "---- expected ----"
+			cat "$tests_dir/$test/expected.txt"
+			echo "##################"
+		fi
 	fi
-
 }
 
 # Run all test in test directory
@@ -105,20 +117,22 @@ runtests() {
 cleanup() {
 	echo -e "$finfo Cleaning up"
 	rm "$exec"
-	find $run_dir -type f -delete
+	if [ ! $cleanup -eq 0 ]; then find $run_dir -mindepth 1 -delete; fi
+}
+
+summary() {
+	echo
+	echo "===== SUMMARY ====="
+	echo "Total $((passed + failed))"
+	echo "Passed $passed"
+	echo "Failed $failed"
 }
 
 
 # === MAIN ===
 
-# Check if user is trying to display help menu
-if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-	helpmenu
-	exit
-fi
-
 # Read and parse C program path
-source_path=$1
+source_path="`pwd`/$1"
 if [ "${source_path#*.}" != "c" ]; then
 	echo -e "$ferr Input file was not provided or is not a c source code => $source_path"
 	echo "$usage"
@@ -133,10 +147,19 @@ shift
 while [ ! $# -eq 0 ]
 do
 	case "$1" in
+		--help | -h)
+			helpmenu
+			exit
+			;;
         --tests-filter | -f)
-			shift
 			test_filter="$1"
             ;;
+		--differences | -d)
+			differences=1
+			;;
+		--cleanup | -c)
+			cleanup=1
+			;;
 	esac
 	shift
 done
@@ -151,6 +174,7 @@ else
 	echo -e "$fok Compilation success"
 fi
 
+# Run and clean
 runtests
-
 cleanup
+summary
