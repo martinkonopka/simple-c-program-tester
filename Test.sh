@@ -37,8 +37,8 @@ helpmenu() {
     echo $header
     echo $usage
     echo
-    printf "$help_format" "" "--help" "Display this menu"
-    printf "$help_format" "-f" "--tests-filter NAME" "Run specific test with name NAME"
+    printf "$help_format" "-h" "--help" "Display this menu"
+    printf "$help_format" "-f" "--filter NAME" "Run specific test with name NAME"
 	printf "$help_format" "-d" "--differences" "Display whole expected and actual output instead of only differences"
 	printf "$help_format" "-c" "--cleanup" "Delete generated outputs after finishing"
 }
@@ -61,12 +61,14 @@ test() {
 
 	echo -e "$finfo Executing test case $test"
 	
+	# Reset test's run folder
 	if [ -d "$run_dir/$source_name/$test" ]; then find "$run_dir/$source_name/$test" -type f -delete; fi
 	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
 	
+	# Run C program with redirected outputs in new spawned shell
 	(cd "$run_dir/$source_name/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
-	# Check if porgram failed
+	# Check if program failed (check status codes)
 	exit_code=$?
 	if [ $exit_code -eq 124 ]; then
 		echo -e "$ferr Allowed program runtime exceeded"
@@ -76,7 +78,7 @@ test() {
 		return
 	fi
 
-	# Check program output with expected
+	# Check program output with expected results
 	diff -ZB "$run_dir/$source_name/$test/output.txt" "$tests_dir/$test/expected.txt" >> /dev/null
 	result=$?
 	if [ $result -eq 0 ]; then
@@ -97,9 +99,9 @@ test() {
 	fi
 }
 
-# Run all test in test directory
-# Find all subdirectories in test/ pick the ones, that
+# Find all subdirectories in test/, pick the ones that
 # match the filter and sort them
+# Then run tests within these folders
 runtests() {
 	echo -e "$finfo Running tests\n"
 	if [ ! -d "$run_dir/$source_name" ]; then mkdir "$run_dir/$source_name"; fi
@@ -129,11 +131,17 @@ summary() {
 	echo "Total $((passed + failed + omitted))"
 	echo "Passed $passed"
 	echo "Failed $failed"
-	echo "Omitted $omitted"
+	if [ $omitted -gt 0 ]; then echo "Omitted $omitted"; fi
 }
 
 
 # === MAIN ===
+
+# Check if user is trying to display help
+if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+	helpmenu
+	exit
+fi
 
 # Read and parse C program path
 source_path="`pwd`/$1"
@@ -156,7 +164,7 @@ do
 			helpmenu
 			exit
 			;;
-        --tests-filter | -f)
+        --filter | -f)
 			shift
 			test_filter="$1"
             ;;
