@@ -115,6 +115,7 @@ test() {
 # Then run tests within these folders
 runtests() {
 	echo -e "$finfo Running tests\n"
+	if [ ! -d "$run_dir" ]; then mkdir "$run_dir"; fi
 	if [ ! -d "$run_dir/$source_name" ]; then mkdir "$run_dir/$source_name"; fi
 	for tdir in `find ./$tests_dir -mindepth 1 -type d | grep "$test_filter" | sort`
 	do
