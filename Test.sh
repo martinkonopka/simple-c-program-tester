@@ -9,6 +9,7 @@ source_path=""
 test_filter=""
 differences=0
 cleanup=0
+timeout=1
 
 # Inside variables
 header="Simple C Program Tester for LINUX"
@@ -41,6 +42,9 @@ helpmenu() {
     printf "$help_format" "-f" "--filter NAME" "Run specific test with name NAME"
 	printf "$help_format" "-d" "--differences" "Display whole expected and actual output instead of only differences"
 	printf "$help_format" "-c" "--cleanup" "Delete generated outputs after finishing"
+	printf "$help_format" "-t" "--timeout" "Set programs execution time limit. Program will be killed after time limit is exceeded."
+	echo
+	echo "Flags need to be typed separately. Ex: './Test.sh ... -dc' will not work. You have to type './Test.sh ... -d -c'"
 }
 
 # Compile src with gcc
@@ -66,7 +70,7 @@ test() {
 	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
 	
 	# Run C program with redirected outputs in new spawned shell
-	(cd "$run_dir/$source_name/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
+	(cd "$run_dir/$source_name/$test" && exec timeout "$timeout"s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if program failed (check status codes)
 	exit_code=$?
@@ -173,6 +177,11 @@ do
 			;;
 		--cleanup | -c)
 			cleanup=1
+			;;
+		--timeout | -t)
+			shift
+			timeout="$1"
+			echo -e "$finfo Setting time limit to $timeout seconds"
 			;;
 	esac
 	shift
