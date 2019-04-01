@@ -9,7 +9,7 @@ source_path=""
 test_filter=""
 differences=0
 cleanup=0
-timeout=1
+time_limit=1
 
 # Inside variables
 header="Simple C Program Tester for LINUX"
@@ -77,7 +77,7 @@ test() {
 	fi
 	
 	# Run C program with redirected outputs in new spawned shell
-	(cd "$run_dir/$source_name/$test" && exec timeout "$timeout"s $exec < "input.txt" > "output.txt" 2>"error.txt")
+	(cd "$run_dir/$source_name/$test" && exec timeout "$time_limit"s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if program failed (check status codes)
 	exit_code=$?
@@ -187,8 +187,8 @@ do
 			;;
 		--timeout | -t)
 			shift
-			timeout="$1"
-			echo -e "$finfo Setting time limit to $timeout seconds"
+			time_limit="$1"
+			echo -e "$finfo Setting time limit to $time_limit seconds"
 			;;
 	esac
 	shift
