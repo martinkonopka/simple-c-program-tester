@@ -149,6 +149,12 @@ summary() {
 
 # === MAIN ===
 
+# Check for tests/ folder
+if [ ! -d "$tests_dir" ]; then
+	echo -e "$ferr tests/ folder is nonexistent"
+	exit
+fi
+
 # Check if user is trying to display help
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
 	helpmenu
