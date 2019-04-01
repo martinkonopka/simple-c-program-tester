@@ -28,6 +28,8 @@ run_dir="runs"
 exec="`pwd`/$output_dir/a.out"
 source_name=""
 
+use_rsync=1
+
 let passed=0
 let failed=0
 let omitted=0
@@ -67,7 +69,12 @@ test() {
 	
 	# Reset test's run folder
 	if [ -d "$run_dir/$source_name/$test" ]; then find "$run_dir/$source_name/$test" -type f -delete; fi
-	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
+	if [ $use_rsync -eq 1 ];then
+		rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
+	else
+		if [ ! -d "`pwd`/$run_dir/$source_name/$test/" ]; then mkdir "`pwd`/$run_dir/$source_name/$test/"; fi
+		find "`pwd`/$tests_dir/$test/" -mindepth 1 -path "`pwd`/$tests_dir/$test/expected.txt" -prune -o -exec cp '{}' "`pwd`/$run_dir/$source_name/$test/" \;
+	fi
 	
 	# Run C program with redirected outputs in new spawned shell
 	(cd "$run_dir/$source_name/$test" && exec timeout "$timeout"s $exec < "input.txt" > "output.txt" 2>"error.txt")
@@ -186,6 +193,10 @@ do
 	esac
 	shift
 done
+
+# Check for rsync command
+command -v rsync >> /dev/null
+if [ $? -gt 0 ]; then use_rsync=0; fi
 
 # Compile and check success
 compile
