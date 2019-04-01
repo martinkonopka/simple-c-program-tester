@@ -9,6 +9,7 @@ source_path=""
 test_filter=""
 differences=0
 cleanup=0
+time_limit=1
 
 # Inside variables
 header="Simple C Program Tester for LINUX"
@@ -27,6 +28,8 @@ run_dir="runs"
 exec="`pwd`/$output_dir/a.out"
 source_name=""
 
+use_rsync=1
+
 let passed=0
 let failed=0
 let omitted=0
@@ -41,6 +44,9 @@ helpmenu() {
     printf "$help_format" "-f" "--filter NAME" "Run specific test with name NAME"
 	printf "$help_format" "-d" "--differences" "Display whole expected and actual output instead of only differences"
 	printf "$help_format" "-c" "--cleanup" "Delete generated outputs after finishing"
+	printf "$help_format" "-t" "--timeout TIME" "Set programs execution time limit in seconds. Program will be killed after time limit is exceeded."
+	echo
+	echo "Flags need to be typed separately. Ex: './Test.sh ... -dc' will not work. You have to type './Test.sh ... -d -c'"
 }
 
 # Compile src with gcc
@@ -63,10 +69,15 @@ test() {
 	
 	# Reset test's run folder
 	if [ -d "$run_dir/$source_name/$test" ]; then find "$run_dir/$source_name/$test" -type f -delete; fi
-	rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
+	if [ $use_rsync -eq 1 ];then
+		rsync -r --exclude="expected.txt" "`pwd`/$tests_dir/$test/" "`pwd`/$run_dir/$source_name/$test/"
+	else
+		if [ ! -d "`pwd`/$run_dir/$source_name/$test/" ]; then mkdir "`pwd`/$run_dir/$source_name/$test/"; fi
+		find "`pwd`/$tests_dir/$test/" -mindepth 1 -path "`pwd`/$tests_dir/$test/expected.txt" -prune -o -exec cp '{}' "`pwd`/$run_dir/$source_name/$test/" \;
+	fi
 	
 	# Run C program with redirected outputs in new spawned shell
-	(cd "$run_dir/$source_name/$test" && exec timeout 1s $exec < "input.txt" > "output.txt" 2>"error.txt")
+	(cd "$run_dir/$source_name/$test" && exec timeout "$time_limit"s $exec < "input.txt" > "output.txt" 2>"error.txt")
 
 	# Check if program failed (check status codes)
 	exit_code=$?
@@ -104,6 +115,7 @@ test() {
 # Then run tests within these folders
 runtests() {
 	echo -e "$finfo Running tests\n"
+	if [ ! -d "$run_dir" ]; then mkdir "$run_dir"; fi
 	if [ ! -d "$run_dir/$source_name" ]; then mkdir "$run_dir/$source_name"; fi
 	for tdir in `find ./$tests_dir -mindepth 1 -type d | grep "$test_filter" | sort`
 	do
@@ -174,9 +186,18 @@ do
 		--cleanup | -c)
 			cleanup=1
 			;;
+		--timeout | -t)
+			shift
+			time_limit="$1"
+			echo -e "$finfo Setting time limit to $time_limit seconds"
+			;;
 	esac
 	shift
 done
+
+# Check for rsync command
+command -v rsync >> /dev/null
+if [ $? -gt 0 ]; then use_rsync=0; fi
 
 # Compile and check success
 compile

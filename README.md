@@ -79,6 +79,7 @@ To run a specific test, use the `-TestsFilter` parameter with name of the test t
 ## Requirements
 
 * GCC
+* (optional) rsync
 
 ## How to run tests
 
