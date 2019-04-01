@@ -44,7 +44,7 @@ helpmenu() {
     printf "$help_format" "-f" "--filter NAME" "Run specific test with name NAME"
 	printf "$help_format" "-d" "--differences" "Display whole expected and actual output instead of only differences"
 	printf "$help_format" "-c" "--cleanup" "Delete generated outputs after finishing"
-	printf "$help_format" "-t" "--timeout" "Set programs execution time limit. Program will be killed after time limit is exceeded."
+	printf "$help_format" "-t" "--timeout TIME" "Set programs execution time limit in seconds. Program will be killed after time limit is exceeded."
 	echo
 	echo "Flags need to be typed separately. Ex: './Test.sh ... -dc' will not work. You have to type './Test.sh ... -d -c'"
 }
