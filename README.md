@@ -74,6 +74,14 @@ To run a specific test, use the `-TestsFilter` parameter with name of the test t
 ```
 & .\Test.ps1 -SourcePath .\src\source.c -TestsFilter "basic_test"
 ```
+
+To redirect output of the test run into a file, first redirect the *Information* stream (no. 6) to the *Success* stream (no. 1), then redirect to a file. If the Information stream was not redirected, the `Write-Host` messages would not be written to the file. `Write-Host` is used instead of `Write-Output` because of support for coloring messages in console window. 
+
+```
+& .\Test.ps1 -SourcePath .\src\source.c -TestsFilter "basic_test" 6>&1 | Out-File output.txt
+
+```
+
 # Linux
 
 ## Requirements

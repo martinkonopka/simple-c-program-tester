@@ -5,6 +5,7 @@ param(
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
 ,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 1000
+,   [int]$OutputLimit = 50
 )
 
 
@@ -12,6 +13,7 @@ Function Test-Gcc
 {
     return (Get-Command "gcc.exe" -ErrorAction SilentlyContinue) -ne $NULL
 }
+
 
 Function Open-EnvironmentVariables 
 {
@@ -27,9 +29,42 @@ Function Open-EnvironmentVariables
 
         Write-Host
         Write-Host "To apply changes, close and open new PowerShell console window." -ForegroundColor Yellow
-        
     }
 }
+
+
+Enum MessageLevel 
+{
+    Info
+    Success
+    Error
+}
+
+
+Function Write-Message
+{
+    param(
+        [Parameter(Position = 0)][String]$Message = ""
+    ,   [Parameter(Position = 1)][MessageLevel]$Level
+    )
+
+    switch ($Level)
+    {
+        "Success" { $char = "+"; $color = "Green" }
+        "Error" { $char = "-"; $color = "Red" }
+        "Info" { $char = "*"; $color = "Yellow" }
+    }
+
+    if ($char) 
+    {
+        Write-Host "[$char] $Message"  -ForegroundColor $color
+    }
+    else
+    {
+        Write-Host $Message
+    }
+}
+
 
 Function Compare-Output 
 {
@@ -47,6 +82,7 @@ Function Compare-Output
     param(
         [Parameter(Mandatory = $TRUE)][string]$OutputPath
     ,   [Parameter(Mandatory = $TRUE)][string]$ExpectedPath 
+    ,   [int]$Limit
     )
     
     if (-not (Test-Path $ExpectedPath))
@@ -57,7 +93,7 @@ Function Compare-Output
     
     if (-not (Test-Path $OutputPath)) 
     {
-        Write-Host "Error: Output file not found." -ForegroundColor Red
+        Write-Error "Error: Output file not found." -ForegroundColor Red
         Return
     }
 
@@ -67,32 +103,35 @@ Function Compare-Output
     $expected = Get-Content $ExpectedPath | % { $_.TrimEnd() }
     $expected = if ($expected) { $expected } else { [String]::Empty }
 
+    $outputCount = $output.Count
+    $outputLimit = [System.Math]::Max($Limit, $expected.Count)
+    
+    $truncated = ($outputCount -gt $outputLimit)
+    $output = $output | Select-Object -First $outputLimit
+
     $compare = Compare-Object -ReferenceObject $expected -DifferenceObject $output -CaseSensitive
-        
+
     if ($compare) {
+        Write-Message "FAILED" -Level Error
         if ($output) {
-            Write-Host "CHECK" -ForegroundColor Yellow
-            Write-Host "##### actual #####" -ForegroundColor Yellow
-            $output | Write-Host
-            Write-Host "---- expected ----" -ForegroundColor Yellow
-            $expected | Write-Host
-            Write-Host "---- compared ----" -ForegroundColor Yellow
-            $compare | Format-Table
-            Write-Host "##################" -ForegroundColor Yellow
+
+            $output `
+            | % { } { [PSCustomObject]@{ "Actual output"   = $_ } } { if ($truncated) { "   ...truncated $($outputCount - $outputLimit) lines" } } | Format-Table 
+            
+            $expected `
+            | % { [PSCustomObject]@{ "Expected output" = $_ } } | Format-Table
+            
+            $compare `
+            | Format-Table @{ Label = "Comparison" ; Expression = { $_.InputObject } }, SideIndicator
         }
-        else {
-            Write-Host "FAILED" -ForegroundColor Yellow
-            Write-Host "##### actual #####" -ForegroundColor Yellow
-            $output | Write-Host
-            Write-Host "---- expected ----" -ForegroundColor Yellow
-            $expected | Write-Host
-            Write-Host "##################" -ForegroundColor Yellow
-        }
+        # else there was no output, we do not write out anything
     }
     else {
-        Write-Host "PASSED" -ForegroundColor Green
+        Write-Message "PASSED" -Level Success
     }
 }
+
+
 
 Function Test-Run
 {
@@ -117,14 +156,14 @@ Function Test-Run
     )
 
     
-    Write-Host 
-    Write-Host $Test -ForegroundColor Yellow
+    Write-Message
+    Write-Message "Executing test case $Test" -Level Info
 
     $testDirectory = Join-Path $TestsDirectory -ChildPath $Test
 
     if (-not (Test-Path $testDirectory))
     {
-        Write-Host "Test directory not found, test ignored"
+        Write-Message "Test directory not found, test ignored" -Level Error
         Return
     }
 
@@ -133,7 +172,7 @@ Function Test-Run
 
     if ((-not (Test-Path $inputFilePath)) -or (-not (Test-Path $expectedFilePath))) 
     {
-        Write-Host "Test files not found, test ignored"
+        Write-Message "Test files not found, test ignored" -Level Error
         Return
     }
 
@@ -151,7 +190,6 @@ Function Test-Run
     $outputFilePath = Join-Path $runDirectory -ChildPath "output.txt"
     $errorFilePath  = Join-Path $runDirectory -ChildPath "error.txt"
 
-    Write-Host "Execution: " -NoNewline
 
     $process = Start-Process -FilePath $ExecutablePath `
                              -WorkingDirectory $runDirectory `
@@ -167,22 +205,20 @@ Function Test-Run
     if ($exited) 
     {
         if ($process.ExitCode -eq 0) {
-            Write-Host "OK" -ForegroundColor Green
+            Write-Message "Execution successful" -Level Success
         }
         else {
-            Write-Host "FAILED" -ForegroundColor Red
-            Write-Host "Exit code: $($process.ExitCode)" -ForegroundColor Red
+            Write-Message "Execution failed with exit code $($process.ExitCode)}" -Level Error
             Get-Content $errorFilePath | Write-Host
         }
     }
     else
     {
         $process.Kill()
-        Write-Host "TIMEOUT" -ForegroundColor Red
+        Write-Message "Execution timed out" -Level Error
     }
 
-    Write-Host "Test result: " -NoNewline
-    Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath
+    Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
 }
 
 
@@ -204,8 +240,10 @@ if (Test-Path $ExecutablePath)
     Remove-Item $ExecutablePath -ErrorAction Stop
 } 
 
+$filename = [System.IO.Path]::GetFileName("$SourcePath")
 
-Write-Host "Compiling $($SourcePath): " -NoNewline
+Write-Message "$filename"
+Write-Message "Compiling..." -Level Info
 
 # Check if the GCC is available. If not, ask to open Environment Varaibles settings window to set it in the PATH
 if (-not (Test-Gcc))
@@ -224,14 +262,15 @@ if (Test-Gcc)
 }
 else 
 {
-    Write-Host "Unable to find gcc.exe in your PATH."
+    Write-Host "Unable to find gcc.exe in your PATH." -ForegroundColor Red
 }
 
 if (Test-Path $ExecutablePath)
 {
-    Write-Host "OK" -ForegroundColor Green
-    Write-Host "Path: $ExecutablePath"
-    Write-Host "Running tests:"
+    Write-Message "Success" -Level Success
+
+    Write-Message "Running tests" -Level Info
+    Write-Message
 
     Get-ChildItem $TestsDirectory -Filter $TestsFilter -Directory `
     | Sort-Object -Property Name `
@@ -245,5 +284,5 @@ if (Test-Path $ExecutablePath)
 }
 else 
 {
-    Write-Host "Compilation failed" -ForegroundColor Red
+    Write-Message "Compilation failed" -Level Error
 }
