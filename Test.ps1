@@ -204,19 +204,31 @@ Function Test-Run
     $exited = $process.WaitForExit($Timeout)
     if ($exited) 
     {
-        if ($process.ExitCode -eq 0) {
+        if ($process.ExitCode -eq 0) 
+        {
             Write-Message "Execution successful" -Level Success
         }
-        else {
-            Write-Message "Execution failed with exit code $($process.ExitCode)}" -Level Error
-            Get-Content $errorFilePath | Write-Host
+        else 
+        {
+            Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
+            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table
         }
     }
     else
     {
         $process.Kill()
-        Write-Message "Execution timed out" -Level Error
+        if ($process.ExitCode -ne 0) 
+        {
+            Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
+            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table
+        }
+        else
+        {
+            Write-Message "Execution timed out" -Level Error
+        }
     }
+
+    Copy-Item $ExecutablePath -Destination (Join-Path $runDirectory -ChildPath "bin.exe")
 
     Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
 }
@@ -225,7 +237,8 @@ Function Test-Run
 
 # Main script body
 
-if (-not (Test-Path $SourcePath)) {
+if (-not (Test-Path $SourcePath)) 
+{
     Write-Host "Input file not found: $SourcePath" -ForegroundColor Red
     Return
 }
