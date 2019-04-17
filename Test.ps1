@@ -116,13 +116,35 @@ Function Compare-Output
         if ($output) {
 
             $output `
-            | % { } { [PSCustomObject]@{ "Actual output"   = $_ } } { if ($truncated) { "   ...truncated $($outputCount - $outputLimit) lines" } } | Format-Table 
-            
+            | % {
+                    Write-Host "Actual output" 
+                    Write-Host "-------------"
+                } `
+                { 
+                    Write-Host $_ 
+                } `
+                {
+                    if ($truncated) 
+                    {
+                        Write-Host "   ...truncated $($outputCount - $outputLimit) lines" 
+                    }
+                    Write-Host ""
+                }
+                        
             $expected `
-            | % { [PSCustomObject]@{ "Expected output" = $_ } } | Format-Table
+            | % {
+                    Write-Host "Expected output" 
+                    Write-Host "-------------"
+                } `
+                { 
+                    Write-Host $_ 
+                } `
+                {
+                    Write-Host ""
+                }
             
             $compare `
-            | Format-Table @{ Label = "Comparison" ; Expression = { $_.InputObject } }, SideIndicator
+            | Format-Table @{ Label = "Comparison" ; Expression = { $_.InputObject } }, SideIndicator -AutoSize
         }
         # else there was no output, we do not write out anything
     }
@@ -211,7 +233,7 @@ Function Test-Run
         else 
         {
             Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
-            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table
+            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
         }
     }
     else
@@ -220,7 +242,7 @@ Function Test-Run
         if ($process.ExitCode -ne 0) 
         {
             Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
-            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table
+            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
         }
         else
         {
