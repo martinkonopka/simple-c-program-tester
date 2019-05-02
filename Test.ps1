@@ -66,6 +66,7 @@ Function Write-Message
 }
 
 
+
 Function Compare-Output 
 {
     <#
@@ -111,10 +112,11 @@ Function Compare-Output
 
     $compare = Compare-Object -ReferenceObject $expected -DifferenceObject $output -CaseSensitive
 
-    if ($compare) {
+    if ($compare) 
+    {
         Write-Message "FAILED" -Level Error
-        if ($output) {
-
+        if ($output) 
+        {
             $output `
             | % {
                     Write-Host "Actual output" 
@@ -148,11 +150,11 @@ Function Compare-Output
         }
         # else there was no output, we do not write out anything
     }
-    else {
+    else
+    {
         Write-Message "PASSED" -Level Success
     }
 }
-
 
 
 Function Test-Run
@@ -176,7 +178,6 @@ Function Test-Run
     ,   [string]$OutputDirectory = "$PSScriptRoot\runs\"
     ,   [int]$Timeout
     )
-
     
     Write-Message
     Write-Message "Executing test case $Test" -Level Info
@@ -205,6 +206,7 @@ Function Test-Run
     {
         Remove-Item $runDirectory -Recurse
     }
+    
     New-Item $runDirectory -ItemType Directory -ErrorAction Ignore | Out-Null
 
     Copy-item "$testDirectory\*" -Exclude "expected.txt" -Destination $runDirectory
