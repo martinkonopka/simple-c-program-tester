@@ -3,6 +3,8 @@ param(
 ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
+,   [switch]$LogAlloc
+,   [string]$AllocLogFile = "memlog.csv"
 ,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 1000
 ,   [int]$OutputLimit = 50
@@ -50,9 +52,9 @@ Function Write-Message
 
     switch ($Level)
     {
-        "Success" { $char = "+"; $color = "Green" }
-        "Error" { $char = "-"; $color = "Red" }
-        "Info" { $char = "*"; $color = "Yellow" }
+        "Success" { $char = "+"; $color = "Green"  }
+        "Error"   { $char = "-"; $color = "Red"    }
+        "Info"    { $char = "*"; $color = "Yellow" }
     }
 
     if ($char) 
@@ -157,7 +159,73 @@ Function Compare-Output
 }
 
 
-Function Test-Run
+Function Validate-AllocLog
+{
+    param(
+        [PSObject]$Log
+    ,   [System.Collections.Specialized.OrderedDictionary]$Cache
+    )
+
+    $validity = $TRUE
+
+    if (($Log.Op -eq "+") -and (-not $Cache.Contains($Log.Ptr)))
+    {
+        $Cache.Add($Log.Ptr, $Log.Size)
+    }
+    elseif (($Log.Op -eq "-") -and ($Cache.Contains($Log.Ptr)))
+    {
+        $Cache.Remove($Log.Ptr)
+    }
+    else
+    {
+        $validity = $FALSE
+    }
+
+    Add-Member -InputObject $Log -MemberType NoteProperty -Name IsValid -Value $validity -PassThru
+}
+
+
+
+Function Evaluate-Cache
+{
+    param(
+        [Hashtable]$Cache
+    )
+
+    $stat = $Cache.Values | Measure-Object -Sum
+
+    if ($stat.Sum -gt 0) 
+    {
+        Write-Message "Memory left: $($stat.Sum) Bytes in $($stat.Count) block(s): $($Cache.Values)" -Level Info
+    }
+}
+
+
+
+Function Compare-Allocations 
+{
+    param(
+        [string]$AllocLogFilePath
+    )
+
+    $logs = Get-Content $AllocLogFilePath `
+            | ConvertFrom-Csv `
+            | % { $cache = [Ordered]@{} } `
+                { 
+                    Validate-AllocLog -Log $_ -Cache $cache
+                } `
+                { Evaluate-Cache -Cache $cache }
+
+    $logs `
+    | Where-Object -FilterScript { -not $_.IsValid } `
+    | % {
+            Write-Message "Invalid `"$($_.Op)`" at $($_.Ptr)"
+        }
+}
+
+
+
+Function Execute-TestRun
 {
     <#
         .SYNOPSIS
@@ -255,6 +323,13 @@ Function Test-Run
     Copy-Item $ExecutablePath -Destination (Join-Path $runDirectory -ChildPath "bin.exe")
 
     Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
+    
+    $allocLogFilePath = Join-Path $runDirectory -ChildPath $AllocLogFile
+
+    if (Test-Path $allocLogFilePath) 
+    {
+        Compare-Allocations -AllocLogFilePath $allocLogFilePath
+    }
 }
 
 
@@ -295,7 +370,16 @@ if (Test-Gcc)
 {
     # Compile source file with GCC and supply includes in case they are missing in the soruce file.
     # Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
-    & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
+    if ($LogAlloc)
+    {
+        # adds loggig of calls to functions for managing allocations to $AllocLogFile
+        & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h" `
+                  -include "$PSScriptRoot\lib\memlog.c" "-Wl,--wrap=free,--wrap=malloc,--wrap=realloc,--wrap=calloc" "-DMEMLOGFILE=`"\`"$AllocLogFile\`"`""
+    }
+    else
+    {
+        & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
+    }
 }
 else 
 {
@@ -312,11 +396,11 @@ if (Test-Path $ExecutablePath)
     Get-ChildItem $TestsDirectory -Filter $TestsFilter -Directory `
     | Sort-Object -Property Name `
     | % { 
-            Test-Run -Run $run `
-                     -Test $_.Name `
-                     -TestsDirectory $TestsDirectory `
-                     -ExecutablePath $ExecutablePath `
-                     -Timeout $Timeout
+            Execute-TestRun -Run $run `
+                            -Test $_.Name `
+                            -TestsDirectory $TestsDirectory `
+                            -ExecutablePath $ExecutablePath `
+                            -Timeout $Timeout
         }
 }
 else 
