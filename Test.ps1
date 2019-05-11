@@ -3,8 +3,9 @@ param(
 ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
-,   [switch]$LogAlloc
-,   [string]$AllocLogFile = "memlog.csv"
+,   [switch]$LogMemAlloc
+,   [string]$MemAllocLogFile = "memlog.csv"
+,   [int]$MemAllocAcceptedLimit = 8
 ,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 1000
 ,   [int]$OutputLimit = 50
@@ -166,8 +167,6 @@ Function Validate-AllocLog
     ,   [System.Collections.Specialized.OrderedDictionary]$Cache
     )
 
-    $validity = $TRUE
-
     if (($Log.Op -eq "+") -and (-not $Cache.Contains($Log.Ptr)))
     {
         $Cache.Add($Log.Ptr, $Log.Size)
@@ -178,10 +177,8 @@ Function Validate-AllocLog
     }
     else
     {
-        $validity = $FALSE
+        return $Log
     }
-
-    Add-Member -InputObject $Log -MemberType NoteProperty -Name IsValid -Value $validity -PassThru
 }
 
 
@@ -190,13 +187,19 @@ Function Evaluate-Cache
 {
     param(
         [Hashtable]$Cache
+    ,   [int]$AcceptedLimit = 0
     )
 
     $stat = $Cache.Values | Measure-Object -Sum
 
-    if ($stat.Sum -gt 0) 
+    if ($stat.Sum -gt $AcceptedLimit) 
     {
         Write-Message "Memory left: $($stat.Sum) Bytes in $($stat.Count) block(s): $($Cache.Values)" -Level Info
+        return $TRUE
+    }
+    else
+    {
+        return $FALSE
     }
 }
 
@@ -206,7 +209,10 @@ Function Compare-Allocations
 {
     param(
         [string]$AllocLogFilePath
+    ,   [int]$AcceptedLimit
     )
+
+    $hasLeftAllocations = $FALSE
 
     $logs = Get-Content $AllocLogFilePath `
             | ConvertFrom-Csv `
@@ -214,13 +220,15 @@ Function Compare-Allocations
                 { 
                     Validate-AllocLog -Log $_ -Cache $cache
                 } `
-                { Evaluate-Cache -Cache $cache }
+                { $hasLeftAllocations = Evaluate-Cache -Cache $cache -AcceptedLimit $AcceptedLimit }
 
-    $logs `
-    | Where-Object -FilterScript { -not $_.IsValid } `
-    | % {
-            Write-Message "Invalid `"$($_.Op)`" at $($_.Ptr)"
-        }
+    if ($hasLeftAllocations) 
+    {
+        $logs `
+        | % {
+                Write-Message "Invalid `"$($_.Op)`" at $($_.Ptr)"
+            }
+    }
 }
 
 
@@ -324,11 +332,11 @@ Function Execute-TestRun
 
     Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
     
-    $allocLogFilePath = Join-Path $runDirectory -ChildPath $AllocLogFile
+    $allocLogFilePath = Join-Path $runDirectory -ChildPath $MemAllocLogFile
 
     if (Test-Path $allocLogFilePath) 
     {
-        Compare-Allocations -AllocLogFilePath $allocLogFilePath
+        Compare-Allocations -AllocLogFilePath $allocLogFilePath -AcceptedLimit $MemAllocAcceptedLimit
     }
 }
 
@@ -370,11 +378,11 @@ if (Test-Gcc)
 {
     # Compile source file with GCC and supply includes in case they are missing in the soruce file.
     # Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
-    if ($LogAlloc)
+    if ($LogMemAlloc)
     {
-        # adds loggig of calls to functions for managing allocations to $AllocLogFile
+        # adds loggig of calls to functions for managing allocations to $MemAllocLogFile
         & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h" `
-                  -include "$PSScriptRoot\lib\memlog.c" "-Wl,--wrap=free,--wrap=malloc,--wrap=realloc,--wrap=calloc" "-DMEMLOGFILE=`"\`"$AllocLogFile\`"`""
+                  -include "$PSScriptRoot\lib\memlog.c" "-Wl,--wrap=free,--wrap=malloc,--wrap=realloc,--wrap=calloc" "-DMEMLOGFILE=`"\`"$MemAllocLogFile\`"`""
     }
     else
     {
