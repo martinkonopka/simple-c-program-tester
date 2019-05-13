@@ -82,16 +82,21 @@ To redirect output of the test run into a file, first redirect the *Information*
 
 ```
 
-## Memory allocations logging
+## Dynamic memory management logging
 
 *This feature is currently available in the PowerShell version only*
 
-To evaluate memory allocations for unfreed memory, use the `-LogAlloc` parameter. Then, standard `*alloc` and `free` functions are wrapped with functions defined in [memlog.c](https://github.com/martinkonopka/simple-c-program-tester/blob/master/lib/memlog.c) that log their calls to a `memlog.csv` file. If name of the log file would be in conflict with other files used by the binary, specify other name with the optional `-AllocLogFile` parameter. The log file is evaluated for each run - invalid calls to `free` are listed and report of total size of undreed memory left, count of blocks left and size of each block is given. 
-
+Use the `-LogMemAlloc` switch parameter to enable logging of calls to standard `*alloc` and `free` functions in each test run. These functions are wrapped in the [memlog.c](https://github.com/martinkonopka/simple-c-program-tester/blob/master/lib/memlog.c) where they log their call parameters and return values to a log file (default name: `memlog.csv`). The log file is evaluated after the test run - invalid calls to `free` are listed and a report with the total size of unfreed memory, count of blocks left and size of each block is given. 
 
 ```
-& .\Test.ps1 -SourcePath .\src\source.c -LogAlloc
+& .\Test.ps1 -SourcePath .\src\source.c -LogMemAlloc
 ```
+
+List of related parameters: 
+* `-LogMemAlloc` (switch) - enables logging of dynamic memory management.
+* `-MemAllocLogFile [FILE]` (string) - specifies custom name for the log file, use in case the `memlog.csv` filename could clash with program files. Default is `memlog.csv`.
+* `-MemAllocAcceptedLimit [SIZE]` (int) - specifies accepted limit of unfreed memory in Bytes. Default value is `8`.
+
 
 # Linux
 
