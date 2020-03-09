@@ -1,11 +1,8 @@
 param(
     [Parameter(Mandatory = $TRUE)][string]$SourcePath
-,   [string]$TestsPath = "$PSScriptRoot\tests\"
+,   [string]$TestsDirectoryPath = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectoryPath = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectoryPath = "$PSScriptRoot\build\"
-,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
-,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
-,   [string]$BuildDirectory = "$PSScriptRoot\build\"
 ,   [switch]$LogMemAlloc
 ,   [string]$MemAllocLogPath = "memlog.csv"
 ,   [string]$GccPath = "gcc.exe"
@@ -321,9 +318,9 @@ Function Invoke-Test
 {
     <#
         .SYNOPSIS
-        Executes a test case named $Name located at $TestsPath with the given executable at $ExecutablePath:
+        Executes a test case named $Name located at $TestsDirectoryPath with the given executable at $ExecutablePath:
         1. Set the working directory for the executable to the test directory.
-        2. Redirect process input to the test input file "input.txt" located in a directory names $Test.
+        2. Redirect process input to the test input file "input.txt" located in a directory named $Test.
         3. Redirect process output streams to files in $OutputDirectory.
         4. Run the program but limit its execution time, if $Timeout was specfied.
         5. Compare actual output of the program with expected output in "expected.txt" using the Compare-Output function.
@@ -338,14 +335,14 @@ Function Invoke-Test
         [Parameter(Mandatory = $TRUE, ValueFromPipeline=$TRUE, ValueFromPipelineByPropertyName=$TRUE)][string]$Name
     ,   [Parameter(Mandatory = $TRUE)][string]$Run
     ,   [Parameter(Mandatory = $TRUE)][string]$ExecutablePath
-    ,   [string]$TestsPath = "$PSScriptRoot\tests\"
-    ,   [string]$OutputDirectory = "$PSScriptRoot\runs\"
+    ,   [string]$TestsDirectoryPath = "$PSScriptRoot\tests\"
+    ,   [string]$RunsDirectoryPath = "$PSScriptRoot\runs\"
     ,   [int]$Timeout
     )
     
     process 
     {
-        $testDirectory = Join-Path $TestsPath -ChildPath $Name
+        $testDirectory = Join-Path $TestsDirectoryPath -ChildPath $Name
 
         if (-not (Test-Path $testDirectory))
         {
@@ -362,7 +359,7 @@ Function Invoke-Test
             Return
         }
 
-        $runDirectory = Join-Path (Join-Path $OutputDirectory -ChildPath $Run) -ChildPath $Name
+        $runDirectory = Join-Path (Join-Path $RunsDirectoryPath -ChildPath $Run) -ChildPath $Name
         
         # Delete previous run
         if (Test-Path $runDirectory)
@@ -510,7 +507,7 @@ Write-Message "Success" -Level Success
 Write-Message "Running tests" -Level Info
 Write-Message
 
-Get-ChildItem $TestsPath -Filter $TestsFilter -Directory `
+Get-ChildItem $TestsDirectoryPath -Filter $TestsFilter -Directory `
 | Sort-Object -Property Name `
 | % {     
         Write-Message
@@ -518,8 +515,9 @@ Get-ChildItem $TestsPath -Filter $TestsFilter -Directory `
         $_
     } `
 | Invoke-Test -Run $sourceName `
-              -TestsPath $TestsPath `
               -ExecutablePath $executablePath `
+              -TestsDirectoryPath $TestsDirectoryPath `
+              -RunsDirectoryPath $RunsDirectoryPath `
               -Timeout $Timeout `
 | Compare-TestOutput -Limit $OutputLimit `
 | Compare-TestAllocations -LogPath $MemAllocLogPath `
