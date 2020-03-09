@@ -284,6 +284,38 @@ Function Write-TestAllocations
 }
 
 
+Function Write-TestSummary 
+{
+    param(
+        [PSObject][Parameter(ValueFromPipeline=$TRUE)]$Result
+    )
+
+    begin 
+    {
+        $passed = 0
+        $failed = 0
+    }
+    process
+    {
+        if ($Result.IsSuccess) 
+        {
+            $passed++
+        }
+        else 
+        {
+            $failed++
+        }
+    }
+    end
+    {
+        Write-Message
+        Write-Message "===== SUMMARY =====" -Level Info
+        Write-Message "Total $($passed + $failed)" -Level Info
+        Write-Message "Passed $passed" -Level Success
+        Write-Message "Failed $failed" -Level Error
+    }
+}
+
 
 Function Invoke-Test
 {
@@ -492,4 +524,5 @@ Get-ChildItem $TestsPath -Filter $TestsFilter -Directory `
 | Compare-TestOutput -Limit $OutputLimit `
 | Compare-TestAllocations -LogPath $MemAllocLogPath `
 | Write-TestResult -PassThru `
-| Write-TestAllocations -AcceptedLeakedLimit $MemAllocAcceptedLimit
+| Write-TestAllocations -AcceptedLeakedLimit $MemAllocAcceptedLimit -PassThru `
+| Write-TestSummary
