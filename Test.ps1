@@ -1,10 +1,14 @@
 param(
     [Parameter(Mandatory = $TRUE)][string]$SourcePath
+,   [string]$TestsPath = "$PSScriptRoot\tests\"
+,   [string]$RunsDirectoryPath = "$PSScriptRoot\runs\"
+,   [string]$BuildDirectoryPath = "$PSScriptRoot\build\"
 ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
 ,   [string]$RunsDirectory = "$PSScriptRoot\runs\"
 ,   [string]$BuildDirectory = "$PSScriptRoot\build\"
 ,   [switch]$LogMemAlloc
-,   [string]$MemAllocLogFile = "memlog.csv"
+,   [string]$MemAllocLogPath = "memlog.csv"
+,   [string]$GccPath = "gcc.exe"
 ,   [int]$MemAllocAcceptedLimit = 8
 ,   [string]$TestsFilter = "*"
 ,   [int]$Timeout = 1000
@@ -12,9 +16,16 @@ param(
 )
 
 
-Function Test-Gcc 
+Function Resolve-GccPath 
 {
-    return (Get-Command "gcc.exe" -ErrorAction SilentlyContinue) -ne $NULL
+    param([string]$GccPath)
+
+    @(
+        (Resolve-Path $GccPath -ErrorAction SilentlyContinue).Path
+    ,   (Get-Command "gcc.exe" -ErrorAction SilentlyContinue).Source
+    ) `
+    | Where-Object -FilterScript { $_ } `
+    | Select-Object -First 1
 }
 
 
@@ -69,12 +80,11 @@ Function Write-Message
 }
 
 
-
-Function Compare-Output 
+Function Compare-TestOutput 
 {
     <#
         .SYNOPSIS
-        Compares contents of the test output file with contents of the expected file
+        Compares contents of the actual output file with contents of the expected file for the test
 
         .DESCRIPTION
         Possible results:
@@ -84,161 +94,207 @@ Function Compare-Output
     #>
 
     param(
-        [Parameter(Mandatory = $TRUE)][string]$OutputPath
-    ,   [Parameter(Mandatory = $TRUE)][string]$ExpectedPath 
+        [Parameter(Mandatory = $TRUE, ValueFromPipeline = $TRUE)][PSObject]$InputObject
+    ,   [Parameter(Mandatory = $TRUE, ValueFromPipelineByPropertyName = $TRUE)][string]$ActualOutputPath
+    ,   [Parameter(Mandatory = $TRUE, ValueFromPipelineByPropertyName = $TRUE)][string]$ExpectedOutputPath
     ,   [int]$Limit
     )
-    
-    if (-not (Test-Path $ExpectedPath))
+
+    process 
     {
-        Write-Error "Expected file not found." -ForegroundColor Red
-        Return
-    }
-    
-    if (-not (Test-Path $OutputPath)) 
-    {
-        Write-Error "Error: Output file not found." -ForegroundColor Red
-        Return
-    }
-
-    $output = Get-Content $OutputPath | % { $_.TrimEnd() }
-    $output = if ($output) { $output } else { [String]::Empty }
-    
-    $expected = Get-Content $ExpectedPath | % { $_.TrimEnd() }
-    $expected = if ($expected) { $expected } else { [String]::Empty }
-
-    $outputCount = $output.Count
-    $outputLimit = [System.Math]::Max($Limit, $expected.Count)
-    
-    $truncated = ($outputCount -gt $outputLimit)
-    $output = $output | Select-Object -First $outputLimit
-
-    $compare = Compare-Object -ReferenceObject $expected -DifferenceObject $output -CaseSensitive
-
-    if ($compare) 
-    {
-        Write-Message "FAILED" -Level Error
-        if ($output) 
+        if (-not (Test-Path $ExpectedOutputPath))
         {
-            $output `
-            | % {
-                    Write-Host "Actual output" 
-                    Write-Host "-------------"
-                } `
-                { 
-                    Write-Host $_ 
-                } `
-                {
-                    if ($truncated) 
-                    {
-                        Write-Host "   ...truncated $($outputCount - $outputLimit) lines" 
-                    }
-                    Write-Host ""
-                }
-                        
-            $expected `
-            | % {
-                    Write-Host "Expected output" 
-                    Write-Host "-------------"
-                } `
-                { 
-                    Write-Host $_ 
-                } `
-                {
-                    Write-Host ""
-                }
-            
-            $compare `
-            | Format-Table @{ Label = "Comparison" ; Expression = { $_.InputObject } }, SideIndicator -AutoSize
+            Write-Error "Test error: Expected file not found." -ForegroundColor Red
+            return $InputObject
         }
-        # else there was no output, we do not write out anything
-    }
-    else
-    {
-        Write-Message "PASSED" -Level Success
-    }
-}
+        
+        if (-not (Test-Path $ActualOutputPath)) 
+        {
+            Write-Error "Test error: Output file not found." -ForegroundColor Red
+            return $InputObject
+        }
 
+        $actual = Get-Content $ActualOutputPath | % { $_.TrimEnd() }
+        $actual = if ($actual) { $actual } else { [String]::Empty }
+        
+        $expected = Get-Content $ExpectedOutputPath | % { $_.TrimEnd() }
+        $expected = if ($expected) { $expected } else { [String]::Empty }
 
-Function Validate-AllocLog
-{
-    param(
-        [PSObject]$Log
-    ,   [System.Collections.Specialized.OrderedDictionary]$Cache
-    )
+        $actualLinesCount = $actual.Count
+        $outputLimit = [System.Math]::Max($Limit, $expected.Count)
+        
+        $truncated = ($actualLinesCount -gt $outputLimit)
+        $actual = $actual | Select-Object -First $outputLimit
 
-    if (($Log.Op -eq "+") -and (-not $Cache.Contains($Log.Ptr)))
-    {
-        $Cache.Add($Log.Ptr, $Log.Size)
-    }
-    elseif (($Log.Op -eq "-") -and ($Cache.Contains($Log.Ptr)))
-    {
-        $Cache.Remove($Log.Ptr)
-    }
-    else
-    {
-        return $Log
-    }
-}
+        $comparison = Compare-Object -ReferenceObject $expected -DifferenceObject $actual -CaseSensitive
 
+        $outputs = [PSCustomObject]@{
+            "Actual" = $actual
+        ;   "Expected" = $expected
+        ;   "Comparison" = $comparison
+        ;   "Truncated" = [Math]::Max(0, ($actualLinesCount - $outputLimit))
+        }
 
-
-Function Evaluate-Cache
-{
-    param(
-        [Hashtable]$Cache
-    ,   [int]$AcceptedLimit = 0
-    )
-
-    $stat = $Cache.Values | Measure-Object -Sum
-
-    if ($stat.Sum -gt $AcceptedLimit) 
-    {
-        Write-Message "Memory left: $($stat.Sum) Bytes in $($stat.Count) block(s): $($Cache.Values)" -Level Info
-        return $TRUE
-    }
-    else
-    {
-        return $FALSE
+        return $InputObject `
+               | Add-Member -MemberType NoteProperty -Name "IsSuccess" -Value (-not $comparison) -PassThru `
+               | Add-Member -MemberType NoteProperty -Name "Outputs" -Value $outputs -PassThru `
     }
 }
 
 
-
-Function Compare-Allocations 
-{
+Function Write-TestResult 
+{ 
     param(
-        [string]$AllocLogFilePath
-    ,   [int]$AcceptedLimit
+        [PSObject][Parameter(ValueFromPipeline=$TRUE)]$Result
+    ,   [switch]$PassThru
     )
 
-    $hasLeftAllocations = $FALSE
-
-    $logs = Get-Content $AllocLogFilePath `
-            | ConvertFrom-Csv `
-            | % { $cache = [Ordered]@{} } `
-                { 
-                    Validate-AllocLog -Log $_ -Cache $cache
-                } `
-                { $hasLeftAllocations = Evaluate-Cache -Cache $cache -AcceptedLimit $AcceptedLimit }
-
-    if ($hasLeftAllocations) 
+    process 
     {
-        $logs `
-        | % {
-                Write-Message "Invalid `"$($_.Op)`" at $($_.Ptr)"
+        if ($Result.IsSuccess)
+        {
+            Write-Message "PASSED" -Level Success
+        }
+        else 
+        {
+            Write-Message "FAILED" -Level Error
+
+            if ($Result.Outputs -and $Result.Outputs.Actual)
+            {
+                $Result.Outputs.Actual `
+                | % {
+                        Write-Host "Actual output" 
+                        Write-Host "---------------"
+                    } `
+                    { 
+                        Write-Host $_ 
+                    } `
+                    {
+                        if ($Result.Outputs.Truncated)
+                        {
+                            Write-Host "   ...truncated $($Result.Outputs.Truncated) lines" 
+                        }
+                        Write-Host ""
+                    }
+                            
+                $Result.Outputs.Expected `
+                | % {
+                        Write-Host "Expected output" 
+                        Write-Host "---------------"
+                    } `
+                    { 
+                        Write-Host $_ 
+                    } `
+                    {
+                        Write-Host ""
+                    }
+                
+                $Result.Outputs.Comparison `
+                | Format-Table @{ Label = "Comparison" ; Expression = { $_.InputObject } }, "SideIndicator" -AutoSize `
+                | Out-String `
+                | Write-Host
             }
+            # else there was no output, we do not write out anything
+        }
+           
+        if ($PassThru) 
+        {
+            return $Result
+        }
+    }
+}
+
+
+Function Compare-TestAllocations 
+{
+    param(
+        [PSObject][Parameter(ValueFromPipeline=$TRUE)]$InputObject
+    ,   [string]$LogPath
+    )
+
+    process
+    {
+        $logFilePath = [System.IO.Path]::Combine($InputObject.RunDirectoryPath, $LogPath)
+
+        if (-not $logFilePath -or (-not (Test-Path $logFilePath))) 
+        {
+            return $InputObject
+        }
+
+        $allocCache = [Ordered]@{}
+
+        $invalidOperations = Get-Content $logFilePath `
+        | ConvertFrom-Csv `
+        | % { 
+                if (($_.Op -eq "+") -and (-not $allocCache.Contains($_.Ptr)))
+                {
+                    $allocCache.Add($_.Ptr, $_.Size)
+                }
+                elseif (($_.Op -eq "-") -and ($allocCache.Contains($_.Ptr)))
+                {
+                    $allocCache.Remove($_.Ptr)
+                }
+                else
+                {
+                    return $_
+                }
+            }
+
+        $log = [PSCustomObject]@{ 
+            "Cache" = $allocCache
+        ;   "InvalidOperations" = $invalidOperations
+        } 
+
+        return $InputObject `
+               | Add-Member -MemberType NoteProperty -Name "Memory" -Value $log -PassThru
+    }
+}
+
+
+Function Write-TestAllocations
+{
+    param(
+        [PSObject][Parameter(ValueFromPipeline=$TRUE)]$Result
+    ,   [int]$AcceptedLeakedLimit
+    ,   [switch]$PassThru
+    )
+
+    process 
+    {
+        if ($Result.Memory) 
+        {
+            $stat = $Result.Memory.Cache.Values | Measure-Object -Sum
+        
+            if ($stat.Sum -gt $AcceptedLeakedLimit) 
+            {
+                Write-Message "Memory left: $($stat.Sum) Bytes in $($stat.Count) block(s): $($Result.Memory.Cache.Values)" -Level Info
+
+                $Result.Memory.InvalidOperations `
+                | % { 
+                        Write-Message "Invalid `"$($_.Op)`" at $($_.Ptr)"
+                    }
+            }
+        }
+
+        if ($PassThru) 
+        {
+            $Result
+        }
     }
 }
 
 
 
-Function Execute-TestRun
+Function Invoke-Test
 {
     <#
         .SYNOPSIS
-        Executes a test run with executable, sets the working directory for the executable to the test directory and redirects output streams to files in |OutputDirectory|.
-        The output is then compared to the expected output with the Compare-Output function.
+        Executes a test case named $Name located at $TestsPath with the given executable at $ExecutablePath:
+        1. Set the working directory for the executable to the test directory.
+        2. Redirect process input to the test input file "input.txt" located in a directory names $Test.
+        3. Redirect process output streams to files in $OutputDirectory.
+        4. Run the program but limit its execution time, if $Timeout was specfied.
+        5. Compare actual output of the program with expected output in "expected.txt" using the Compare-Output function.
 
         .DESCRIPTION
         Displays message about execution status:
@@ -247,96 +303,102 @@ Function Execute-TestRun
     #>
 
     param( 
-        [Parameter(Mandatory = $TRUE)][string]$Run
+        [Parameter(Mandatory = $TRUE, ValueFromPipeline=$TRUE, ValueFromPipelineByPropertyName=$TRUE)][string]$Name
+    ,   [Parameter(Mandatory = $TRUE)][string]$Run
     ,   [Parameter(Mandatory = $TRUE)][string]$ExecutablePath
-    ,   [Parameter(Mandatory = $TRUE)][string]$Test
-    ,   [string]$TestsDirectory = "$PSScriptRoot\tests\"
+    ,   [string]$TestsPath = "$PSScriptRoot\tests\"
     ,   [string]$OutputDirectory = "$PSScriptRoot\runs\"
     ,   [int]$Timeout
     )
     
-    Write-Message
-    Write-Message "Executing test case $Test" -Level Info
-
-    $testDirectory = Join-Path $TestsDirectory -ChildPath $Test
-
-    if (-not (Test-Path $testDirectory))
+    process 
     {
-        Write-Message "Test directory not found, test ignored" -Level Error
-        Return
-    }
+        $testDirectory = Join-Path $TestsPath -ChildPath $Name
 
-    $inputFilePath    = Join-Path $testDirectory -ChildPath "input.txt"
-    $expectedFilePath = Join-Path $testDirectory -ChildPath "expected.txt"
-
-    if ((-not (Test-Path $inputFilePath)) -or (-not (Test-Path $expectedFilePath))) 
-    {
-        Write-Message "Test files not found, test ignored" -Level Error
-        Return
-    }
-
-    $runDirectory = Join-Path (Join-Path $OutputDirectory -ChildPath $Run) -ChildPath $Test
-    
-    # Delete previous run
-    if (Test-Path $runDirectory)
-    {
-        Remove-Item $runDirectory -Recurse
-    }
-    
-    New-Item $runDirectory -ItemType Directory -ErrorAction Ignore | Out-Null
-
-    Copy-item "$testDirectory\*" -Exclude "expected.txt" -Destination $runDirectory
-
-    $outputFilePath = Join-Path $runDirectory -ChildPath "output.txt"
-    $errorFilePath  = Join-Path $runDirectory -ChildPath "error.txt"
-
-
-    $process = Start-Process -FilePath $ExecutablePath `
-                             -WorkingDirectory $runDirectory `
-                             -RedirectStandardInput $inputFilePath `
-                             -RedirectStandardOutput $outputFilePath `
-                             -RedirectStandardError $errorFilePath `
-                             -NoNewWindow `
-                             -PassThru
-                          
-    $handle = $process.Handle # cache the process handle, otherwise the WaitForExit would not work
-
-    $exited = $process.WaitForExit($Timeout)
-    if ($exited) 
-    {
-        if ($process.ExitCode -eq 0) 
+        if (-not (Test-Path $testDirectory))
         {
-            Write-Message "Execution successful" -Level Success
+            Write-Message "Test directory not found, test ignored" -Level Error
+            Return
         }
-        else 
+
+        $inputFilePath    = Join-Path $testDirectory -ChildPath "input.txt"
+        $expectedFilePath = Join-Path $testDirectory -ChildPath "expected.txt"
+
+        if ((-not (Test-Path $inputFilePath)) -or (-not (Test-Path $expectedFilePath))) 
         {
-            Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
-            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
+            Write-Message "Test files not found, test ignored" -Level Error
+            Return
         }
-    }
-    else
-    {
-        $process.Kill()
-        if ($process.ExitCode -ne 0) 
+
+        $runDirectory = Join-Path (Join-Path $OutputDirectory -ChildPath $Run) -ChildPath $Name
+        
+        # Delete previous run
+        if (Test-Path $runDirectory)
         {
-            Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
-            Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
+            Remove-Item $runDirectory -Recurse
+        }
+        
+        New-Item $runDirectory -ItemType Directory -ErrorAction Ignore | Out-Null
+
+        Copy-item "$testDirectory\*" -Exclude "expected.txt" -Destination $runDirectory
+
+        $outputFilePath = Join-Path $runDirectory -ChildPath "output.txt"
+        $errorFilePath  = Join-Path $runDirectory -ChildPath "error.txt"
+
+        $process = Start-Process -FilePath $ExecutablePath `
+                                -WorkingDirectory $runDirectory `
+                                -RedirectStandardInput $inputFilePath `
+                                -RedirectStandardOutput $outputFilePath `
+                                -RedirectStandardError $errorFilePath `
+                                -NoNewWindow `
+                                -PassThru
+                            
+        # cache the process handle, otherwise the WaitForExit would not work
+        $handle = $process.Handle
+
+        $exited = $process.WaitForExit($Timeout)
+        if ($exited) 
+        {
+            if ($process.ExitCode -eq 0) 
+            {
+                Write-Message "Execution successful" -Level Success
+            }
+            else 
+            {
+                Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
+                Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
+            }
         }
         else
         {
-            Write-Message "Execution timed out" -Level Error
+            $process.Kill()
+            if ($process.ExitCode -ne 0) 
+            {
+                Write-Message "Execution failed with exit code $($process.ExitCode)" -Level Error
+                Get-Content $errorFilePath | % { [PSCustomObject]@{ "Error output" = $_ } } | Format-Table -AutoSize
+            }
+            else
+            {
+                Write-Message "Execution timed out" -Level Error
+            }
         }
-    }
 
-    Copy-Item $ExecutablePath -Destination (Join-Path $runDirectory -ChildPath "bin.exe")
+        Copy-Item $ExecutablePath -Destination (Join-Path $runDirectory -ChildPath "bin.exe")
 
-    Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
-    
-    $allocLogFilePath = Join-Path $runDirectory -ChildPath $MemAllocLogFile
+        return [PSCustomObject]@{ 
+            RunDirectoryPath = $runDirectory
+        ;   ActualOutputPath = $outputFilePath
+        ;   ExpectedOutputPath = $expectedFilePath
+        }
 
-    if (Test-Path $allocLogFilePath) 
-    {
-        Compare-Allocations -AllocLogFilePath $allocLogFilePath -AcceptedLimit $MemAllocAcceptedLimit
+        # Compare-Output -OutputPath $outputFilePath -ExpectedPath $expectedFilePath -Limit $OutputLimit
+        
+        # $allocLogFilePath = Join-Path $runDirectory -ChildPath $MemAllocLogPath
+
+        # if (Test-Path $allocLogFilePath) 
+        # {
+        #     Compare-Allocations -AllocLogFilePath $allocLogFilePath -AcceptedLimit $MemAllocAcceptedLimit
+        # }
     }
 }
 
@@ -350,68 +412,84 @@ if (-not (Test-Path $SourcePath))
     Return
 }
 
-$run = [System.IO.Path]::GetFileNameWithoutExtension($SourcePath)
+$sourceName = [System.IO.Path]::GetFileNameWithoutExtension($SourcePath)
 
-New-Item $BuildDirectory -ItemType Directory -ErrorAction Ignore | Out-Null
-$ExecutablePath = Join-Path $BuildDirectory -ChildPath "$($run).exe"
+New-Item $BuildDirectoryPath -ItemType Directory -ErrorAction Ignore | Out-Null
+$executablePath = Join-Path $BuildDirectoryPath -ChildPath "$($sourceName).exe"
 
-if (Test-Path $ExecutablePath) 
+if (Test-Path $executablePath) 
 {
-    Remove-Item $ExecutablePath -ErrorAction Stop
+    Remove-Item $executablePath -ErrorAction Stop
 } 
 
-$filename = [System.IO.Path]::GetFileName("$SourcePath")
+$sourceFileName = [System.IO.Path]::GetFileName("$SourcePath")
 
-Write-Message "$filename"
+Write-Message "$sourceFileName"
 Write-Message "Compiling..." -Level Info
 
-# Check if the GCC is available. If not, ask to open Environment Varaibles settings window to set it in the PATH
-if (-not (Test-Gcc))
+$gcc = Resolve-GccPath -GccPath $GccPath
+
+# Check if the GCC is available. If not, ask to open Environment Variables settings window to set it in the PATH
+if (-not $gcc)
 {
     Write-Host "Compiler not found" -ForegroundColor Red
     Write-Host "Unable to find gcc.exe in your PATH. Set up path to the GCC bin directory to your PATH environmnet variable." -Foreground Red
     Write-Host "Set GCC bin directory to the PATH variable and restart PowerShell." -ForegroundColor Red
     Open-EnvironmentVariables -Confirm
+
+    $gcc = Resolve-Path -GccPath $GccPath
 }
 
-if (Test-Gcc)
-{
-    # Compile source file with GCC and supply includes in case they are missing in the soruce file.
-    # Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
-    if ($LogMemAlloc)
-    {
-        # adds loggig of calls to functions for managing allocations to $MemAllocLogFile
-        & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h" `
-                  -include "$PSScriptRoot\lib\memlog.c" "-Wl,--wrap=free,--wrap=malloc,--wrap=realloc,--wrap=calloc" "-DMEMLOGFILE=`"\`"$MemAllocLogFile\`"`""
-    }
-    else
-    {
-        & gcc.exe $SourcePath -o $ExecutablePath -include "stdio.h" -include "string.h" -include "stdlib.h"
-    }
-}
-else 
+if (-not $gcc)
 {
     Write-Host "Unable to find gcc.exe in your PATH." -ForegroundColor Red
 }
 
-if (Test-Path $ExecutablePath)
+# Compile source file with GCC and supply includes in case they are missing in the source file.
+# Example: gcc src.c -o src.exe -include "stdio.h" -include "string.h" -include "stdlib.h"
+$compilerArgs = @(
+    $SourcePath
+,   "-o", $executablePath
+,   "-include", "stdio.h"
+,   "-include", "string.h"
+,   "-include", "stdlib.h"
+)
+
+if ($LogMemAlloc)
 {
-    Write-Message "Success" -Level Success
-
-    Write-Message "Running tests" -Level Info
-    Write-Message
-
-    Get-ChildItem $TestsDirectory -Filter $TestsFilter -Directory `
-    | Sort-Object -Property Name `
-    | % { 
-            Execute-TestRun -Run $run `
-                            -Test $_.Name `
-                            -TestsDirectory $TestsDirectory `
-                            -ExecutablePath $ExecutablePath `
-                            -Timeout $Timeout
-        }
+    # adds logging of calls to the functions for dynamic memory allocations from stdlib.h to $MemAllocLogPath
+    $compilerArgs += @(
+        "-include", "$PSScriptRoot\lib\memlog.c"
+    ,   "-Wl,--wrap=free,--wrap=malloc,--wrap=realloc,--wrap=calloc"
+    ,   "-DMEMLOGFILE=`"\`"$MemAllocLogPath\`"`""
+    )
 }
-else 
+
+Start-Process -FilePath "gcc.exe" -ArgumentList ($compilerArgs | % { $_ }) -Wait -NoNewWindow
+
+if (-not (Test-Path $executablePath))
 {
     Write-Message "Compilation failed" -Level Error
+    Return
 }
+
+Write-Message "Success" -Level Success
+
+Write-Message "Running tests" -Level Info
+Write-Message
+
+Get-ChildItem $TestsPath -Filter $TestsFilter -Directory `
+| Sort-Object -Property Name `
+| % {     
+        Write-Message
+        Write-Message "Executing test case $($_.Name)" -Level Info
+        $_
+    } `
+| Invoke-Test -Run $sourceName `
+              -TestsPath $TestsPath `
+              -ExecutablePath $executablePath `
+              -Timeout $Timeout `
+| Compare-TestOutput -Limit $OutputLimit `
+| Compare-TestAllocations -LogPath $MemAllocLogPath `
+| Write-TestResult -PassThru `
+| Write-TestAllocations -AcceptedLeakedLimit $MemAllocAcceptedLimit
